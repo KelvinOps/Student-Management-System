@@ -8,8 +8,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Intellimis - Institution Management System",
-  description: "Comprehensive management system for Kongoni Technical and Vocational College",
+  title: "254StudentMIS - Institution Management System",
+  description: "Comprehensive management system for Technical and Vocational College",
   keywords: ["institution management", "student management", "academic system", "school ERP"],
 };
 

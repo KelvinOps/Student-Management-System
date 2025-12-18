@@ -214,8 +214,8 @@ export default function DashboardLayout({
                 <span className="text-cyan-700 text-xl font-bold">I</span>
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-bold">Intellimis</h1>
-                <p className="text-xs text-cyan-100">Kongoni Technical and Vocational College</p>
+                <h1 className="text-lg font-bold">254StudentMIS</h1>
+                <p className="text-xs text-cyan-100"> Technical and Vocational College</p>
               </div>
             </div>
           </div>
@@ -412,7 +412,7 @@ export default function DashboardLayout({
           {/* Footer in Sidebar */}
           <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50">
             <p className="text-xs text-center text-gray-500">
-              Powered by ABNO Softwares International Ltd
+              Powered by Bugigi Softwares International Ltd
             </p>
           </div>
         </aside>
