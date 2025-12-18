@@ -60,9 +60,9 @@ function LoginForm() {
             <span className="text-white text-2xl font-bold">I</span>
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">Intellimis</h1>
+        <h1 className="text-2xl font-bold text-gray-900">254StudentMIS</h1>
         <p className="text-sm text-gray-600 mt-2">
-          Kongoni Technical and Vocational College
+          Technical and Vocational College
         </p>
         <p className="text-xs text-gray-500 mt-1">Institution Management System</p>
       </div>
@@ -147,7 +147,7 @@ function LoginForm() {
 
       <div className="mt-8 pt-6 border-t border-gray-200">
         <div className="text-center text-xs text-gray-500 mb-3">
-          Powered By ABNO Softwares International Ltd
+          Powered By Bugigi Softwares International Ltd
         </div>
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <p className="text-xs font-semibold text-blue-900 mb-1">Demo Credentials:</p>
@@ -172,7 +172,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Intellimis</h1>
           <p className="text-sm text-gray-600 mt-2">
-            Kongoni Technical and Vocational College
+            Technical and Vocational College
           </p>
           <div className="mt-8 flex justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-700"></div>

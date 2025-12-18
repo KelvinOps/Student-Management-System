@@ -76,7 +76,7 @@ export default function RegisterPage() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Kongoni Technical and Vocational College
+           Technical and Vocational College
         </p>
       </div>
 
@@ -216,7 +216,7 @@ export default function RegisterPage() {
       </div>
 
       <div className="mt-6 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
-        Powered By ABNO Softwares International Ltd
+        Powered By Bugigi Softwares International Ltd
       </div>
     </div>
   );

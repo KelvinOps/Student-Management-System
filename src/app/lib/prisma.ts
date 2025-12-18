@@ -1,4 +1,4 @@
-// src/app/lib/prisma.ts - UPDATED
+// src/app/lib/prisma.ts - SIMPLE WORKING VERSION
 import { PrismaClient } from '@prisma/client';
 
 const prismaClientSingleton = () => {
@@ -16,7 +16,6 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 export const prisma = globalForPrisma.prisma ?? prismaClientSingleton();
-
 export default prisma;
 
 if (process.env.NODE_ENV !== 'production') {
