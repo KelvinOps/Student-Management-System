@@ -37,7 +37,6 @@ const INSTITUTION_DATA = {
     "Hospitality And Tourism",
     "Agriculture",
     "Business",
-    "Hospitality and Institutional Management"
   ],
   
   // Mapping of department to its programmes
@@ -124,9 +123,6 @@ const INSTITUTION_DATA = {
       "Diploma In Human Resource Management L6",
       "Diploma In Baking Technology L6",
       "Office Assistant Level 4"
-    ],
-    "Hospitality and Institutional Management": [
-      "Diploma In Fashion Design L6"
     ]
   },
   
