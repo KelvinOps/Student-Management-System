@@ -90,8 +90,8 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <div className="px-4 py-4">
-            <h2 className="text-lg font-bold">Intellimis</h2>
-            <p className="text-xs text-muted-foreground">Kongoni Technical College</p>
+            <h2 className="text-lg font-bold">254StudentMIS</h2>
+            <p className="text-xs text-muted-foreground">Technical & Vocational College</p>
           </div>
         </SidebarGroup>
         

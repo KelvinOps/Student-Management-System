@@ -113,7 +113,7 @@ const INSTITUTION_DATA = {
       "Certificate In Office Administration L5",
       "Diploma in Accountancy L6",
       "Diploma In Office administration Level 6",
-      "Certificate In Huma Resource Management",
+      "Certificate In Human Resource Management",
       "Artisan In Social Work and Community Development L4",
       "Certificate In Land Survey L5",
       "Certificate in Human Resource Management L5",
@@ -128,15 +128,18 @@ const INSTITUTION_DATA = {
   
   // Cohort data from your dataset
   cohorts: [
-    "SEPT - DEC 2025",
     "MAY-AUGUST 2025", 
-    "JAN- APR 2025",
     "SEPT - DEC 2025",
-    "MAY-AUGUST 2025",
     "JAN- APR 2025",
-    "SEPT - DEC 2025",
-    "MAY-AUGUST 2025",
-    "JAN- APR 2025"
+    "JAN- APR 2026",
+     "MAY-AUGUST 2026",
+     "SEPT - DEC 2026",
+     "JAN- APR 2027",
+     "MAY-AUGUST 2027",
+     "SEPT - DEC 2027",
+    "JAN- APR 2028",
+     "MAY-AUGUST 2028",
+     "SEPT - DEC 2028",
   ]
 };
 
