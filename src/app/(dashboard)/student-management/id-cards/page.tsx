@@ -301,7 +301,7 @@ export default function IDCardsPage() {
                     </div>
                   </div>
                   <h3 className="text-sm font-semibold text-gray-900">
-                    Kongoni Technical and Vocational College
+                     Technical and Vocational College
                   </h3>
                 </div>
 
