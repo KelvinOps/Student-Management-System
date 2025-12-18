@@ -1,8 +1,13 @@
+// Add this at the very top of prisma/seed.ts
+if (process.env.NODE_ENV === 'production') {
+  console.log('Skipping seed script in production build');
+  process.exit(0);
+}
+
 // prisma/seed.ts - COMPLETE CORRECTED VERSION
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/app/lib/prisma';
 import * as bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Starting seed...');
