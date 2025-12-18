@@ -1,7 +1,7 @@
 // app/(dashboard)/dashboard/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react"; // Added useCallback
 import { useRouter } from "next/navigation";
 import { Users, GraduationCap, DollarSign, Building2, Loader } from "lucide-react";
 import {
@@ -76,24 +76,8 @@ export default function DashboardPage() {
     session: "" as Session | "ALL",
   });
 
-  // Check authentication on mount
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      loadAcademicYears();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (user && filters.academicYear) {
-      loadDashboardData();
-    }
-  }, [filters, user]);
-
-  const checkAuth = async () => {
+  // Define checkAuth with useCallback
+  const checkAuth = useCallback(async () => {
     try {
       const response = await fetch('/api/auth/me');
       
@@ -110,19 +94,12 @@ export default function DashboardPage() {
     } finally {
       setAuthLoading(false);
     }
-  };
+  }, [router]); // Add router as dependency
 
-  const loadAcademicYears = async () => {
-    const result = await getAcademicYears();
-    if (result.success && result.data) {
-      setAcademicYears(result.data);
-      if (result.data.length > 0) {
-        setFilters((prev) => ({ ...prev, academicYear: result.data[0] }));
-      }
-    }
-  };
-
-  const loadDashboardData = async () => {
+  // Define loadDashboardData with useCallback
+  const loadDashboardData = useCallback(async () => {
+    if (!user || !filters.academicYear) return;
+    
     setLoading(true);
     setError("");
 
@@ -172,6 +149,33 @@ export default function DashboardPage() {
       setError("An unexpected error occurred");
     } finally {
       setLoading(false);
+    }
+  }, [filters, user]); // Add dependencies
+
+  // Check authentication on mount
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]); // Add checkAuth to dependencies
+
+  useEffect(() => {
+    if (user) {
+      loadAcademicYears();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user && filters.academicYear) {
+      loadDashboardData();
+    }
+  }, [filters, user, loadDashboardData]); // Add loadDashboardData to dependencies
+
+  const loadAcademicYears = async () => {
+    const result = await getAcademicYears();
+    if (result.success && result.data) {
+      setAcademicYears(result.data);
+      if (result.data.length > 0) {
+        setFilters((prev) => ({ ...prev, academicYear: result.data[0] }));
+      }
     }
   };
 

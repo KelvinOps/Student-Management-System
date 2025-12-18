@@ -1,7 +1,7 @@
 // src/app/(dashboard)/student-management/student-reporting/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Download, Filter, TrendingUp, Users, BookOpen, Award, 
   Calendar, Search, FileText, CheckCircle, X 
@@ -180,33 +180,20 @@ export default function StudentReportingPage() {
   });
 
   // ===== TOAST FUNCTIONS =====
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
-  };
-
-  const closeToast = (id: number) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  };
-
-  // ===== EFFECTS =====
-  useEffect(() => {
-    loadInitialData();
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'overview') {
-      loadReportingData();
-    } else {
-      loadStudentsTable();
-    }
-  }, [filters, activeTab, currentPage, itemsPerPage, searchTerm]);
+  const closeToast = useCallback((id: number) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
 
   // ===== DATA LOADING =====
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     try {
       const [deptResult, classResult, yearResult] = await Promise.all([
         getDepartments(),
@@ -229,9 +216,9 @@ export default function StudentReportingPage() {
       console.error('Error loading initial data:', error);
       showToast('Failed to load filter options', 'error');
     }
-  };
+  }, [showToast]);
 
-  const loadReportingData = async () => {
+  const loadReportingData = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getStudentReportingData(filters);
@@ -250,9 +237,9 @@ export default function StudentReportingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, showToast]);
 
-  const loadStudentsTable = async () => {
+  const loadStudentsTable = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getStudentsForReporting({
@@ -274,7 +261,20 @@ export default function StudentReportingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, currentPage, itemsPerPage, searchTerm, showToast]);
+
+  // ===== EFFECTS =====
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  useEffect(() => {
+    if (activeTab === 'overview') {
+      loadReportingData();
+    } else {
+      loadStudentsTable();
+    }
+  }, [filters, activeTab, currentPage, itemsPerPage, searchTerm, loadReportingData, loadStudentsTable]);
 
   // ===== ACTION HANDLERS =====
   const handleReportStudent = async (studentId: string) => {

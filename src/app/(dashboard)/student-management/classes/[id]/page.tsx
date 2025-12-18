@@ -1,4 +1,3 @@
-
 // app/(dashboard)/student-management/classes/[id]/page.tsx
 'use client';
 
@@ -66,7 +65,7 @@ export default function ClassDetailPage() {
     };
 
     fetchClassDetail();
-  }, [params.id]);
+  }, [params.id, router]); // Added router to dependency array
 
   if (loading) {
     return (

@@ -284,7 +284,7 @@ export default function TVETCohortPlannerPage() {
               { level: "Level 4 - Artisan", count: 277, color: "bg-blue-500" },
               { level: "Level 5 - Craft", count: 226, color: "bg-green-500" },
               { level: "Level 6 - Diploma", count: 112, color: "bg-purple-500" },
-            ].map((item, index) => {
+            ].map((item) => {
               const total = 615;
               const percentage = (item.count / total) * 100;
               

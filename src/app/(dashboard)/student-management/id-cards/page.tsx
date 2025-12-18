@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Filter, Download } from 'lucide-react';
+import Image from 'next/image'; // Added Image import
 import { getIDCardsData } from '@/actions/id-card'
 import { getDepartments } from '@/actions/department';
 import { getClasses } from '@/actions/class';
@@ -63,18 +64,7 @@ export default function IDCardsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
 
-  useEffect(() => {
-    loadDepartments();
-    loadClasses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    loadIDCards();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, itemsPerPage, searchTerm, filters]);
-
-  const loadDepartments = async () => {
+  const loadDepartments = useCallback(async () => {
     try {
       const result = await getDepartments();
       if (result.success && Array.isArray(result.data)) {
@@ -83,9 +73,9 @@ export default function IDCardsPage() {
     } catch (error) {
       console.error('Error loading departments:', error);
     }
-  };
+  }, []);
 
-  const loadClasses = async () => {
+  const loadClasses = useCallback(async () => {
     try {
       const result = await getClasses();
       if (result.success && Array.isArray(result.data)) {
@@ -94,9 +84,9 @@ export default function IDCardsPage() {
     } catch (error) {
       console.error('Error loading classes:', error);
     }
-  };
+  }, []);
 
-  const loadIDCards = async () => {
+  const loadIDCards = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getIDCardsData({
@@ -117,7 +107,16 @@ export default function IDCardsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, itemsPerPage, searchTerm, filters]);
+
+  useEffect(() => {
+    loadDepartments();
+    loadClasses();
+  }, [loadDepartments, loadClasses]);
+
+  useEffect(() => {
+    loadIDCards();
+  }, [loadIDCards]);
 
   const handleDownloadAll = () => {
     setDownloading(true);
@@ -310,12 +309,14 @@ export default function IDCardsPage() {
                 <div className="p-6 bg-gradient-to-br from-cyan-50 to-white">
                   {/* Photo */}
                   <div className="flex justify-center mb-4">
-                    <div className="w-32 h-32 bg-cyan-600 rounded-lg flex items-center justify-center overflow-hidden">
+                    <div className="w-32 h-32 bg-cyan-600 rounded-lg flex items-center justify-center overflow-hidden relative">
                       {student.avatar ? (
-                        <img 
+                        <Image 
                           src={student.avatar} 
                           alt={student.name}
-                          className="w-full h-full object-cover"
+                          fill
+                          className="object-cover"
+                          sizes="128px"
                         />
                       ) : (
                         <svg

@@ -44,6 +44,28 @@ export async function updateDepartment(id: string, data: Partial<DepartmentData>
   }
 }
 
+// Add this function to your src/actions/department.ts file
+export async function getProgrammesByDepartment(departmentId: string) {
+  try {
+    const programmes = await prisma.programme.findMany({
+      where: { departmentId },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        level: true,
+        duration: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return { success: true, data: programmes };
+  } catch (error) {
+    console.error('Error fetching programmes by department:', error);
+    return { success: false, error: 'Failed to fetch programmes', data: [] };
+  }
+}
+
 export async function getDepartments(filters?: {
   isActive?: boolean;
   search?: string;

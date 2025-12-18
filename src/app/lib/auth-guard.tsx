@@ -1,3 +1,4 @@
+// src/app/lib/auth-guard.tsx
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
@@ -56,7 +57,7 @@ export function ProtectedRoute({
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Access Denied</h1>
           <p className="text-gray-600">
-            You don't have permission to access this page.
+            You dont have permission to access this page.
           </p>
           <button
             onClick={() => router.push('/dashboard')}

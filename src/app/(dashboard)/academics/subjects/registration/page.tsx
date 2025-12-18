@@ -1,14 +1,13 @@
 // app/(dashboard)/academics/subjects/registration/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Save, Plus, Trash2, Search } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { Save, Trash2 } from 'lucide-react'; // Removed unused Plus and Search imports
 import {
   getSubjectRegistrations,
-  registerStudentSubject,
   bulkRegisterStudentSubjects,
   deleteSubjectRegistration,
-} from '@/actions/subject';
+} from '@/actions/subject'; // Removed unused registerStudentSubject import
 import { getStudents } from '@/actions/student';
 import { getSubjects } from '@/actions/subject';
 import { getClasses } from '@/actions/class';
@@ -76,33 +75,28 @@ export default function SubjectRegistrationPage() {
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'register' | 'view'>('register');
 
-  useEffect(() => {
-    loadClasses();
-    loadSubjects();
-    loadRegistrations();
-  }, []);
-
-  useEffect(() => {
-    if (selectedClass) {
-      loadStudentsByClass();
+  // Define loadRegistrations with useCallback
+  const loadRegistrations = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await getSubjectRegistrations({
+        classCode: selectedClass ? classes.find(c => c.id === selectedClass)?.code : undefined,
+        page: 1,
+        limit: 500,
+      });
+      
+      if (result.success && Array.isArray(result.data)) {
+        setRegistrations(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading registrations:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [selectedClass]);
+  }, [selectedClass, classes]); // Add dependencies
 
-  const loadClasses = async () => {
-    const result = await getClasses();
-    if (result.success && Array.isArray(result.data)) {
-      setClasses(result.data);
-    }
-  };
-
-  const loadSubjects = async () => {
-    const result = await getSubjects({ page: 1, limit: 200 });
-    if (result.success && Array.isArray(result.data)) {
-      setSubjects(result.data);
-    }
-  };
-
-  const loadStudentsByClass = async () => {
+  // Define loadStudentsByClass with useCallback
+  const loadStudentsByClass = useCallback(async () => {
     if (!selectedClass) return;
     
     setLoading(true);
@@ -121,24 +115,31 @@ export default function SubjectRegistrationPage() {
     } finally {
       setLoading(false);
     }
+  }, [selectedClass]); // Add dependency
+
+  useEffect(() => {
+    loadClasses();
+    loadSubjects();
+    loadRegistrations();
+  }, [loadRegistrations]); // Add loadRegistrations to dependencies
+
+  useEffect(() => {
+    if (selectedClass) {
+      loadStudentsByClass();
+    }
+  }, [selectedClass, loadStudentsByClass]); // Add loadStudentsByClass to dependencies
+
+  const loadClasses = async () => {
+    const result = await getClasses();
+    if (result.success && Array.isArray(result.data)) {
+      setClasses(result.data);
+    }
   };
 
-  const loadRegistrations = async () => {
-    setLoading(true);
-    try {
-      const result = await getSubjectRegistrations({
-        classCode: selectedClass ? classes.find(c => c.id === selectedClass)?.code : undefined,
-        page: 1,
-        limit: 500,
-      });
-      
-      if (result.success && Array.isArray(result.data)) {
-        setRegistrations(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading registrations:', error);
-    } finally {
-      setLoading(false);
+  const loadSubjects = async () => {
+    const result = await getSubjects({ page: 1, limit: 200 });
+    if (result.success && Array.isArray(result.data)) {
+      setSubjects(result.data);
     }
   };
 

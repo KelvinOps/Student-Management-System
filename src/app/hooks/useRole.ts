@@ -1,31 +1,41 @@
-// ============================================
-// 7. hooks/useRole.ts - Role-based access hook
-// ============================================
+// hooks/useRole.ts
 'use client';
 
 import { useAuth } from './useAuth';
 
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | 'TEACHER' | 'STUDENT' | 'PARENT' | 'USER';
+
 export function useRole() {
   const { user } = useAuth();
 
-  const hasRole = (role: string | string[]): boolean => {
-    if (!user) return false;
-    if (Array.isArray(role)) {
-      return role.includes(user.role);
-    }
-    return user.role === role;
+  const getUserRole = (): UserRole | undefined => {
+    return user?.role;
   };
 
-  const canAccess = (requiredRoles: string[]): boolean => {
+  const hasRole = (role: UserRole | UserRole[]): boolean => {
+    const userRole = getUserRole();
+    if (!userRole) return false;
+    
+    if (Array.isArray(role)) {
+      return role.includes(userRole);
+    }
+    return userRole === role;
+  };
+
+  const canAccess = (requiredRoles: UserRole[]): boolean => {
     return hasRole(requiredRoles);
   };
 
-  const isSuperAdmin = (): boolean => user?.role === 'SUPER_ADMIN';
-  const isAdmin = (): boolean => ['SUPER_ADMIN', 'ADMIN'].includes(user?.role || '');
-  const isTeacher = (): boolean => user?.role === 'TEACHER';
-  const isStudent = (): boolean => user?.role === 'STUDENT';
-  const isStaff = (): boolean => user?.role === 'STAFF';
-  const isParent = (): boolean => user?.role === 'PARENT';
+  const isSuperAdmin = (): boolean => getUserRole() === 'SUPER_ADMIN';
+  const isAdmin = (): boolean => {
+    const userRole = getUserRole();
+    return userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+  };
+  const isTeacher = (): boolean => getUserRole() === 'TEACHER';
+  const isStudent = (): boolean => getUserRole() === 'STUDENT';
+  const isStaff = (): boolean => getUserRole() === 'STAFF';
+  const isParent = (): boolean => getUserRole() === 'PARENT';
+  const isUser = (): boolean => getUserRole() === 'USER';
 
   return {
     hasRole,
@@ -36,6 +46,8 @@ export function useRole() {
     isStudent,
     isStaff,
     isParent,
-    userRole: user?.role,
+    isUser,
+    getUserRole,
+    userRole: getUserRole(),
   };
 }

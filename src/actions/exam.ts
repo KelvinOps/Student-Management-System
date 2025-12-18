@@ -31,7 +31,12 @@ export async function createExamSchedule(data: ExamScheduleData) {
     const { subjectIds, ...scheduleData } = data;
 
     const examSchedule = await prisma.examSchedule.create({
-      data: scheduleData,
+      data: {
+        ...scheduleData,
+        subjects: subjectIds && subjectIds.length > 0 ? {
+          connect: subjectIds.map(id => ({ id }))
+        } : undefined,
+      },
     });
 
     revalidatePath('/academics/exams/scheduling');
@@ -49,9 +54,26 @@ export async function updateExamSchedule(
   try {
     const { subjectIds, ...scheduleData } = data;
 
+    const updateData: Prisma.ExamScheduleUpdateInput = { ...scheduleData };
+
+    // Handle subject connections if provided
+    if (subjectIds !== undefined) {
+      // First disconnect all existing subjects
+      updateData.subjects = {
+        set: [],
+      };
+
+      // Then connect the new subjects if provided
+      if (subjectIds.length > 0) {
+        updateData.subjects = {
+          connect: subjectIds.map(id => ({ id }))
+        };
+      }
+    }
+
     const examSchedule = await prisma.examSchedule.update({
       where: { id },
-      data: scheduleData,
+      data: updateData,
     });
 
     revalidatePath('/academics/exams/scheduling');
@@ -120,7 +142,14 @@ export async function getExamSchedule(id: string) {
     const schedule = await prisma.examSchedule.findUnique({
       where: { id },
       include: {
-        subjects: true,
+        subjects: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            credits: true,
+          },
+        },
         examResults: {
           include: {
             student: {
@@ -128,7 +157,18 @@ export async function getExamSchedule(id: string) {
                 admissionNumber: true,
                 firstName: true,
                 lastName: true,
+                class: {
+                  select: {
+                    name: true,
+                    code: true,
+                  },
+                },
               },
+            },
+          },
+          orderBy: {
+            student: {
+              admissionNumber: 'asc',
             },
           },
         },
@@ -172,6 +212,12 @@ export async function createExamResult(data: ExamResultData) {
             admissionNumber: true,
             firstName: true,
             lastName: true,
+            class: {
+              select: {
+                name: true,
+                code: true,
+              },
+            },
           },
         },
         examSchedule: {
@@ -179,6 +225,14 @@ export async function createExamResult(data: ExamResultData) {
             scheduleType: true,
             session: true,
             examType: true,
+            examStartDate: true,
+            examEndDate: true,
+            subjects: {
+              select: {
+                name: true,
+                code: true,
+              },
+            },
           },
         },
       },
@@ -243,6 +297,12 @@ export async function getExamResults(filters?: {
               firstName: true,
               lastName: true,
               middleName: true,
+              class: {
+                select: {
+                  name: true,
+                  code: true,
+                },
+              },
             },
           },
           examSchedule: {
@@ -253,6 +313,13 @@ export async function getExamResults(filters?: {
               examType: true,
               examStartDate: true,
               examEndDate: true,
+              subjects: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -290,13 +357,40 @@ export async function getStudentExamResults(studentId: string) {
             examType: true,
             examStartDate: true,
             examEndDate: true,
+            subjects: {
+              select: {
+                name: true,
+                code: true,
+              },
+            },
           },
         },
       },
       orderBy: { session: 'desc' },
     });
 
-    return { success: true, data: results };
+    // Calculate GPA for each session
+    const sessions = results.reduce((acc, result) => {
+      if (!acc[result.session]) {
+        acc[result.session] = {
+          results: [],
+          totalGradePoints: 0,
+          totalCredits: 0,
+        };
+      }
+      acc[result.session].results.push(result);
+      // Assuming each exam result is worth 3 credits (adjust as needed)
+      acc[result.session].totalCredits += 3;
+      // Calculate grade points based on overallPerformance
+      // You'll need to implement your grading scale
+      return acc;
+    }, {} as Record<string, { results: typeof results; totalGradePoints: number; totalCredits: number }>);
+
+    return { 
+      success: true, 
+      data: results,
+      sessions,
+    };
   } catch (error) {
     console.error('Error fetching student exam results:', error);
     return {
@@ -313,9 +407,24 @@ export async function generateStudentTranscript(studentId: string) {
     const student = await prisma.student.findUnique({
       where: { id: studentId },
       include: {
-        class: true,
-        programme: true,
-        department: true,
+        class: {
+          select: {
+            name: true,
+            code: true,
+            programme: {
+              select: {
+                name: true,
+                code: true,
+              },
+            },
+          },
+        },
+        department: {
+          select: {
+            name: true,
+            code: true,
+          },
+        },
       },
     });
 
@@ -342,7 +451,21 @@ export async function generateStudentTranscript(studentId: string) {
     const examResults = await prisma.examResult.findMany({
       where: { studentId },
       include: {
-        examSchedule: true,
+        examSchedule: {
+          select: {
+            scheduleType: true,
+            session: true,
+            examType: true,
+            examStartDate: true,
+            examEndDate: true,
+            subjects: {
+              select: {
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { session: 'asc' },
     });
@@ -385,4 +508,78 @@ export async function calculateCompetence(percentage: number): Promise<string> {
   if (percentage >= 80) return 'C'; // Competent
   if (percentage >= 60) return 'P'; // Progressing
   return 'I'; // Insufficient
+}
+
+// Helper function to get available subjects for exam scheduling
+export async function getAvailableSubjects(filters?: {
+  curriculumId?: string;
+  departmentId?: string;
+}) {
+  try {
+    const { curriculumId, departmentId } = filters || {};
+
+    const where: Prisma.SubjectWhereInput = {};
+
+    if (curriculumId) where.curriculumId = curriculumId;
+    if (departmentId) {
+      where.curriculum = {
+        departmentId: departmentId,
+      };
+    }
+
+    const subjects = await prisma.subject.findMany({
+      where,
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        credits: true,
+        isCore: true,
+        curriculum: {
+          select: {
+            name: true,
+            code: true,
+          },
+        },
+      },
+      orderBy: [{ code: 'asc' }],
+    });
+
+    return { success: true, data: subjects };
+  } catch (error) {
+    console.error('Error fetching available subjects:', error);
+    return { success: false, error: 'Failed to fetch subjects', data: [] };
+  }
+}
+
+// Update exam schedule with subjects
+export async function updateExamScheduleSubjects(
+  examScheduleId: string,
+  subjectIds: string[]
+) {
+  try {
+    const examSchedule = await prisma.examSchedule.update({
+      where: { id: examScheduleId },
+      data: {
+        subjects: {
+          set: subjectIds.map(id => ({ id }))
+        },
+      },
+      include: {
+        subjects: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    revalidatePath('/academics/exams/scheduling');
+    return { success: true, data: examSchedule };
+  } catch (error) {
+    console.error('Error updating exam schedule subjects:', error);
+    return { success: false, error: 'Failed to update subjects' };
+  }
 }

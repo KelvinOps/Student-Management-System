@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, Users } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Users } from 'lucide-react';
 import { getSubjects, deleteSubject, createSubject, updateSubject } from '@/actions/subject';
 
 interface Subject {

@@ -1,12 +1,11 @@
 // app/(dashboard)/academics/attendance/lesson/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Save, Calendar, Users } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Save } from 'lucide-react';
 import {
   getClassAttendance,
   bulkRecordAttendance,
-  updateAttendance,
 } from '@/actions/attendance';
 import { getClasses } from '@/actions/class';
 import { getSubjects } from '@/actions/subject';
@@ -50,32 +49,28 @@ export default function LessonAttendancePage() {
     {}
   );
 
+  // Load classes and subjects on mount
   useEffect(() => {
-    loadClasses();
-    loadSubjects();
+    const loadInitialData = async () => {
+      const [classesResult, subjectsResult] = await Promise.all([
+        getClasses(),
+        getSubjects(),
+      ]);
+      
+      if (classesResult.success && Array.isArray(classesResult.data)) {
+        setClasses(classesResult.data);
+      }
+      
+      if (subjectsResult.success && Array.isArray(subjectsResult.data)) {
+        setSubjects(subjectsResult.data);
+      }
+    };
+
+    loadInitialData();
   }, []);
 
-  useEffect(() => {
-    if (selectedClass && selectedDate) {
-      loadStudents();
-    }
-  }, [selectedClass, selectedDate]);
-
-  const loadClasses = async () => {
-    const result = await getClasses();
-    if (result.success && Array.isArray(result.data)) {
-      setClasses(result.data);
-    }
-  };
-
-  const loadSubjects = async () => {
-    const result = await getSubjects();
-    if (result.success && Array.isArray(result.data)) {
-      setSubjects(result.data);
-    }
-  };
-
-  const loadStudents = async () => {
+  // Memoized loadStudents function to prevent infinite re-renders
+  const loadStudents = useCallback(async () => {
     if (!selectedClass || !selectedDate) return;
 
     setLoading(true);
@@ -102,7 +97,12 @@ export default function LessonAttendancePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedClass, selectedDate]);
+
+  // Load students when class or date changes
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
 
   const handleAttendanceChange = (studentId: string, status: string) => {
     setAttendanceData((prev) => ({
@@ -125,10 +125,14 @@ export default function LessonAttendancePage() {
       return;
     }
 
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!user.id) {
+      alert('User not found. Please log in again.');
+      return;
+    }
+
     setSaving(true);
-    try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      
+    try {     
       const records = Object.entries(attendanceData).map(([studentId, status]) => ({
         date: new Date(selectedDate),
         studentId,
@@ -137,16 +141,17 @@ export default function LessonAttendancePage() {
         stage: stage || undefined,
         room: room || undefined,
         status: status as 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED',
-        recordedBy: user.id || '',
+        recordedBy: user.id,
       }));
 
       const result = await bulkRecordAttendance(records);
       
       if (result.success) {
         alert('Attendance recorded successfully!');
+        // Refresh the attendance data
         loadStudents();
       } else {
-        alert('Failed to record attendance');
+        alert(result.error || 'Failed to record attendance');
       }
     } catch (error) {
       console.error('Error saving attendance:', error);
@@ -184,6 +189,24 @@ export default function LessonAttendancePage() {
 
   const stats = getAttendanceStats();
 
+  const handleClassChange = (classId: string) => {
+    setSelectedClass(classId);
+    // Reset subject when class changes if needed
+    if (classId !== selectedClass) {
+      setSelectedSubject('');
+      setStage('');
+      setRoom('');
+    }
+  };
+
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+    // Clear attendance data when date changes
+    if (date !== selectedDate) {
+      setAttendanceData({});
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -205,7 +228,7 @@ export default function LessonAttendancePage() {
             <input
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(e) => handleDateChange(e.target.value)}
               max={new Date().toISOString().split('T')[0]}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-700"
             />
@@ -217,7 +240,7 @@ export default function LessonAttendancePage() {
             </label>
             <select
               value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
+              onChange={(e) => handleClassChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-700"
             >
               <option value="">Select Class</option>
@@ -273,6 +296,17 @@ export default function LessonAttendancePage() {
             />
           </div>
         </div>
+
+        {/* Refresh button */}
+        <div className="mt-4">
+          <button
+            onClick={loadStudents}
+            disabled={!selectedClass || !selectedDate || loading}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Loading...' : 'Refresh Students'}
+          </button>
+        </div>
       </div>
 
       {/* Statistics */}
@@ -310,7 +344,7 @@ export default function LessonAttendancePage() {
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
             <h2 className="text-lg font-semibold">Mark Attendance</h2>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => handleMarkAll('PRESENT')}
                 className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
@@ -322,6 +356,18 @@ export default function LessonAttendancePage() {
                 className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
               >
                 Mark All Absent
+              </button>
+              <button
+                onClick={() => handleMarkAll('LATE')}
+                className="px-3 py-1 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700"
+              >
+                Mark All Late
+              </button>
+              <button
+                onClick={() => handleMarkAll('EXCUSED')}
+                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Mark All Excused
               </button>
               <button
                 onClick={handleSave}

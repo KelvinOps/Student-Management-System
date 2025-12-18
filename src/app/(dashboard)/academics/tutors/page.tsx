@@ -1,7 +1,7 @@
 // app/academics/tutors/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react'; // Added useCallback
 import { getTutors, deleteTutor, generateEmployeeCode, createTutor } from '@/actions/tutor';
 import type { CreateTutorInput } from '@/actions/tutor';
 
@@ -46,11 +46,8 @@ export default function TutorsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    loadTutors();
-  }, [page, search]);
-
-  const loadTutors = async () => {
+  // Define loadTutors with useCallback
+  const loadTutors = useCallback(async () => {
     setLoading(true);
     const response = await getTutors({ page, limit: 10, search });
     if (response.success && response.data) {
@@ -58,7 +55,11 @@ export default function TutorsPage() {
       setTotalPages(response.pagination?.totalPages || 1);
     }
     setLoading(false);
-  };
+  }, [page, search]); // Add dependencies
+
+  useEffect(() => {
+    loadTutors();
+  }, [page, search, loadTutors]); // Add loadTutors to dependencies
 
   const handleGenerateCode = async () => {
     const response = await generateEmployeeCode();

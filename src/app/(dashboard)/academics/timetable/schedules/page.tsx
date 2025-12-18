@@ -1,8 +1,8 @@
 // app/(dashboard)/academics/timetable/schedules/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Calendar } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { Plus, Edit, Trash2 } from 'lucide-react'; // Removed unused Search and Calendar imports
 import { 
   getTimetableEntries, 
   createTimetableEntry, 
@@ -95,13 +95,25 @@ export default function TimetableSchedulesPage() {
   });
   const [saving, setSaving] = useState(false);
 
+  // Define loadEntries with useCallback
+  const loadEntries = useCallback(async () => {
+    try {
+      const result = await getTimetableEntries(filterClass || undefined);
+      if (result.success && Array.isArray(result.data)) {
+        setEntries(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading entries:', error);
+    }
+  }, [filterClass]); // Add filterClass as dependency
+
   useEffect(() => {
     loadData();
   }, []);
 
   useEffect(() => {
     loadEntries();
-  }, [filterClass]);
+  }, [filterClass, loadEntries]); // Add loadEntries to dependencies
 
   const loadData = async () => {
     setLoading(true);
@@ -129,17 +141,6 @@ export default function TimetableSchedulesPage() {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadEntries = async () => {
-    try {
-      const result = await getTimetableEntries(filterClass || undefined);
-      if (result.success && Array.isArray(result.data)) {
-        setEntries(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading entries:', error);
     }
   };
 

@@ -1,7 +1,7 @@
 // app/(dashboard)/finance/fee-structure/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import Link from 'next/link';
 import { Plus, Filter, Download, Edit, Trash2, Eye } from 'lucide-react';
 import { getFeeStructures, deleteFeeStructure } from '@/actions/fee-structure';
@@ -59,26 +59,8 @@ export default function FeeStructurePage() {
   const [showFilters, setShowFilters] = useState(false);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
 
-  useEffect(() => {
-    loadProgrammes();
-  }, []);
-
-  useEffect(() => {
-    loadFeeStructures();
-  }, [currentPage, itemsPerPage, filters]);
-
-  const loadProgrammes = async () => {
-    try {
-      const result = await getProgrammes();
-      if (result.success && Array.isArray(result.data)) {
-        setProgrammes(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading programmes:', error);
-    }
-  };
-
-  const loadFeeStructures = async () => {
+  // Define loadFeeStructures with useCallback
+  const loadFeeStructures = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getFeeStructures({
@@ -99,6 +81,25 @@ export default function FeeStructurePage() {
       setFeeStructures([]);
     } finally {
       setLoading(false);
+    }
+  }, [currentPage, itemsPerPage, filters]); // Add dependencies
+
+  useEffect(() => {
+    loadProgrammes();
+  }, []);
+
+  useEffect(() => {
+    loadFeeStructures();
+  }, [currentPage, itemsPerPage, filters, loadFeeStructures]); // Add loadFeeStructures to dependencies
+
+  const loadProgrammes = async () => {
+    try {
+      const result = await getProgrammes();
+      if (result.success && Array.isArray(result.data)) {
+        setProgrammes(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading programmes:', error);
     }
   };
 

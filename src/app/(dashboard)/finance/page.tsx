@@ -2,18 +2,18 @@
 import { Suspense } from 'react';
 import { getFeePayments } from '@/actions/fee-payment';
 import { getProcurementRequests } from '@/actions/procurement';
-import { formatKES, getSessionName } from '@/app/lib/finance-utils';
-import { PAYMENT_STATUS_CONFIG, PROCUREMENT_STATUS_CONFIG } from '@/app/lib/finance-constants';
+import { formatKES } from '@/app/lib/finance-utils';
+import { PAYMENT_STATUS_CONFIG } from '@/app/lib/finance-constants';
 
 async function getFinanceDashboardData() {
   const today = new Date();
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   const startOfYear = new Date(today.getFullYear(), 0, 1);
 
-  // Get recent payments
+  // Get recent payments - using startDate instead of dateFrom
   const paymentsResult = await getFeePayments({
     status: 'COMPLETED',
-    dateFrom: startOfMonth,
+    startDate: startOfMonth,
     limit: 10,
   });
 
@@ -23,29 +23,46 @@ async function getFinanceDashboardData() {
     limit: 5,
   });
 
-  // Calculate totals
-  const allPayments = await getFeePayments({
+  // Get all completed payments for total calculation
+  const allPaymentsResult = await getFeePayments({
     status: 'COMPLETED',
   });
 
   const monthlyPayments = await getFeePayments({
     status: 'COMPLETED',
-    dateFrom: startOfMonth,
+    startDate: startOfMonth,
   });
 
   const yearlyPayments = await getFeePayments({
     status: 'COMPLETED',
-    dateFrom: startOfYear,
+    startDate: startOfYear,
   });
+
+  // For today's payments, set both startDate and endDate to today
+  const todayStart = new Date(today);
+  todayStart.setHours(0, 0, 0, 0);
+  
+  const todayEnd = new Date(today);
+  todayEnd.setHours(23, 59, 59, 999);
 
   const todayPayments = await getFeePayments({
     status: 'COMPLETED',
-    dateFrom: today,
+    startDate: todayStart,
+    endDate: todayEnd,
   });
 
   const totalCollectedToday = todayPayments.data?.reduce((sum, p) => sum + p.amountPaid, 0) || 0;
   const totalCollectedMonth = monthlyPayments.data?.reduce((sum, p) => sum + p.amountPaid, 0) || 0;
   const totalCollectedYear = yearlyPayments.data?.reduce((sum, p) => sum + p.amountPaid, 0) || 0;
+  
+  // Calculate total collected overall
+  const totalCollectedOverall = allPaymentsResult.data?.reduce((sum, p) => sum + p.amountPaid, 0) || 0;
+
+  // Count pending payments - removed the unused variable assignment
+  // Just call getFeePayments for pending payments count
+  const pendingPaymentsAll = await getFeePayments({
+    status: 'PENDING',
+  });
 
   return {
     recentPayments: paymentsResult.data || [],
@@ -54,7 +71,10 @@ async function getFinanceDashboardData() {
       totalCollectedToday,
       totalCollectedMonth,
       totalCollectedYear,
-      pendingPaymentsCount: 0, // Would need separate query
+      totalCollectedOverall,
+      pendingPaymentsCount: pendingPaymentsAll.data?.length || 0,
+      pendingAmount: pendingPaymentsAll.data?.reduce((sum, p) => sum + p.amountPaid, 0) || 0,
+      totalTransactions: allPaymentsResult.data?.length || 0,
     },
   };
 }
@@ -123,11 +143,68 @@ async function DashboardContent() {
         />
         <StatsCard
           title="Pending Payments"
-          value={data.stats.pendingPaymentsCount.toString()}
+          value={`${data.stats.pendingPaymentsCount} (${formatKES(data.stats.pendingAmount)})`}
           icon="⏳"
           trend="-3.2%"
           trendUp={false}
         />
+      </div>
+
+      {/* Overall Summary Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="col-span-1 md:col-span-2">
+          <div className="bg-gradient-to-r from-cyan-600 to-blue-600 rounded-lg shadow p-6 text-white">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">Overall Financial Summary</h2>
+              <span className="text-2xl">🏦</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm opacity-80">Total Collected</p>
+                <p className="text-2xl font-bold">{formatKES(data.stats.totalCollectedOverall)}</p>
+              </div>
+              <div>
+                <p className="text-sm opacity-80">Total Transactions</p>
+                <p className="text-2xl font-bold">{data.stats.totalTransactions}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Collection Rate</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-2xl font-bold text-gray-900">94.7%</p>
+              <p className="text-xs text-gray-600">Current completion rate</p>
+            </div>
+            <div className="w-16 h-16">
+              <div className="relative w-full h-full">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-lg font-semibold text-cyan-700">94.7%</span>
+                </div>
+                <svg className="w-full h-full" viewBox="0 0 36 36">
+                  <path
+                    d="M18 2.0845
+                      a 15.9155 15.9155 0 0 1 0 31.831
+                      a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="#E5E7EB"
+                    strokeWidth="3"
+                  />
+                  <path
+                    d="M18 2.0845
+                      a 15.9155 15.9155 0 0 1 0 31.831
+                      a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="#0891b2"
+                    strokeWidth="3"
+                    strokeDasharray="94.7, 100"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -167,40 +244,48 @@ async function DashboardContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {data.recentPayments.map((payment) => (
-                    <tr key={payment.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {payment.student.firstName} {payment.student.lastName}
+                  {data.recentPayments.length > 0 ? (
+                    data.recentPayments.map((payment) => (
+                      <tr key={payment.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {payment.student?.firstName || 'Unknown'} {payment.student?.lastName || ''}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {payment.student?.admissionNumber || 'N/A'}
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-500">
-                            {payment.student.admissionNumber}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        {formatKES(payment.amountPaid)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {payment.paymentMethod}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {new Date(payment.paymentDate).toLocaleDateString('en-KE')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            payment.status === 'COMPLETED'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}
-                        >
-                          {PAYMENT_STATUS_CONFIG[payment.status].label}
-                        </span>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          {formatKES(payment.amountPaid)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {payment.paymentMethod}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {new Date(payment.paymentDate).toLocaleDateString('en-KE')}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              payment.status === 'COMPLETED'
+                                ? 'bg-green-100 text-green-800 border border-green-300'
+                                : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                            }`}
+                          >
+                            {PAYMENT_STATUS_CONFIG[payment.status]?.label || payment.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                        No recent payments found
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -222,32 +307,38 @@ async function DashboardContent() {
               </a>
             </div>
             <div className="space-y-4">
-              {data.pendingProcurement.map((request) => (
-                <div
-                  key={request.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900 text-sm mb-1">
-                        {request.requestNumber}
-                      </h3>
-                      <p className="text-xs text-gray-600 line-clamp-2">
-                        {request.description}
-                      </p>
+              {data.pendingProcurement.length > 0 ? (
+                data.pendingProcurement.map((request) => (
+                  <div
+                    key={request.id}
+                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-900 text-sm mb-1">
+                          {request.requestNumber}
+                        </h3>
+                        <p className="text-xs text-gray-600 line-clamp-2">
+                          {request.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center mt-3">
+                      <span className="text-sm font-semibold text-gray-900">
+                        {formatKES(request.estimatedCost)}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {request.department}
+                      </span>
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                        Pending
+                      </span>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center mt-3">
-                    <span className="text-sm font-semibold text-gray-900">
-                      {formatKES(request.estimatedCost)}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {request.department}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {data.pendingProcurement.length === 0 && (
+                ))
+              ) : (
                 <p className="text-center text-gray-500 py-8">
                   No pending procurement requests
                 </p>
@@ -263,33 +354,38 @@ async function DashboardContent() {
             <div className="space-y-2">
               <a
                 href="/finance/payments/new"
-                className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
+                className="flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
               >
-                💳 Record Payment
+                <span>💳</span>
+                <span>Record Payment</span>
               </a>
               <a
                 href="/finance/invoices/generate"
-                className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
+                className="flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
               >
-                📄 Generate Invoice
+                <span>📄</span>
+                <span>Generate Invoice</span>
               </a>
               <a
                 href="/finance/fee-structure"
-                className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
+                className="flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
               >
-                📊 Manage Fee Structure
+                <span>📊</span>
+                <span>Manage Fee Structure</span>
               </a>
               <a
                 href="/finance/procurement/new"
-                className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
+                className="flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
               >
-                📦 New Procurement Request
+                <span>📦</span>
+                <span>New Procurement Request</span>
               </a>
               <a
                 href="/finance/reports"
-                className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
+                className="flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition"
               >
-                📈 Financial Reports
+                <span>📈</span>
+                <span>Financial Reports</span>
               </a>
             </div>
           </div>
@@ -313,7 +409,7 @@ function StatsCard({
   trendUp: boolean;
 }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-gray-600">{title}</span>
         <span className="text-2xl">{icon}</span>
@@ -325,7 +421,7 @@ function StatsCard({
             trendUp ? 'text-green-600' : 'text-red-600'
           }`}
         >
-          {trend}
+          {trendUp ? '↗' : '↘'} {trend}
         </span>
         <span className="text-xs text-gray-500 ml-2">vs last period</span>
       </div>
@@ -341,9 +437,16 @@ function DashboardSkeleton() {
           <div key={i} className="bg-gray-200 rounded-lg h-32"></div>
         ))}
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 bg-gray-200 rounded-lg h-32"></div>
+        <div className="bg-gray-200 rounded-lg h-32"></div>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-gray-200 rounded-lg h-96"></div>
-        <div className="bg-gray-200 rounded-lg h-96"></div>
+        <div className="space-y-6">
+          <div className="bg-gray-200 rounded-lg h-64"></div>
+          <div className="bg-gray-200 rounded-lg h-48"></div>
+        </div>
       </div>
     </div>
   );

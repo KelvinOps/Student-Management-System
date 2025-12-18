@@ -1,14 +1,17 @@
 import { 
-  Home, Users, GraduationCap, Calendar, FileText, 
-  DollarSign, Building, Settings, BookOpen, ClipboardList,
-  UserCog, School, Clock, Receipt, Bed
+  Home, 
+  Users, 
+  GraduationCap, 
+  DollarSign, 
+  Building, 
+  Bed,
+  ChevronRight 
 } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -17,7 +20,6 @@ import {
   SidebarMenuSubItem,
 } from "../components/ui/sidebar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible"
-import { ChevronRight } from "lucide-react"
 
 const menuItems = [
   {

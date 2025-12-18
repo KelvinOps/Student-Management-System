@@ -9,6 +9,20 @@ import * as jose from 'jose';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRY = '24h';
 
+// Define the user type without password
+type UserWithoutPassword = {
+  id: string;
+  email: string;
+  role: string;
+  firstName: string | null;
+  lastName: string | null;
+  phoneNumber: string | null;
+  avatar: string | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -79,13 +93,14 @@ export async function POST(request: NextRequest) {
       .setExpirationTime(JWT_EXPIRY)
       .sign(secret);
 
-    // Remove password from response
+    // Remove password from response using destructuring with explicit ignore
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _, ...userWithoutPassword } = user;
 
     const response = NextResponse.json(
       {
         success: true,
-        user: userWithoutPassword,
+        user: userWithoutPassword as UserWithoutPassword,
         message: 'Login successful',
       },
       { status: 200 }

@@ -1,12 +1,10 @@
 // app/(dashboard)/student-management/classes/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Search,
-  Filter,
   Plus,
-  Upload,
   Download,
   MoreVertical,
   Edit,
@@ -67,29 +65,35 @@ export default function ClassesPage(): React.ReactElement {
   });
   const [showActions, setShowActions] = useState<string | null>(null);
 
+  // Extract pagination properties for useCallback dependencies
+  const { limit, current } = pagination;
+
   // Fetch classes
-  const fetchClasses = async (): Promise<void> => {
+  const fetchClasses = useCallback(async (): Promise<void> => {
     setLoading(true);
     const result = await getClasses({
       search: searchTerm,
-      limit: pagination.limit,
-      page: pagination.current,
+      limit,
+      page: current,
     });
 
     if (result.success && result.data) {
       setClasses(result.data as ClassData[]);
       if (result.pagination) {
-        setPagination(result.pagination);
+        setPagination(prev => ({
+          ...prev,
+          ...result.pagination
+        }));
       }
     } else {
       toast.error(result.error || 'Failed to fetch classes');
     }
     setLoading(false);
-  };
+  }, [searchTerm, limit, current]);
 
   useEffect(() => {
     fetchClasses();
-  }, [pagination.current, pagination.limit, searchTerm]);
+  }, [fetchClasses]);
 
   // Handle export
   const handleExport = async (): Promise<void> => {
@@ -208,7 +212,7 @@ export default function ClassesPage(): React.ReactElement {
             <select
               value={pagination.limit}
               onChange={(e) =>
-                setPagination({ ...pagination, limit: Number(e.target.value), current: 1 })
+                setPagination(prev => ({ ...prev, limit: Number(e.target.value), current: 1 }))
               }
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             >
@@ -398,7 +402,7 @@ export default function ClassesPage(): React.ReactElement {
       <div className="flex items-center justify-center gap-2">
         <button
           onClick={() =>
-            setPagination({ ...pagination, current: Math.max(1, pagination.current - 1) })
+            setPagination(prev => ({ ...prev, current: Math.max(1, prev.current - 1) }))
           }
           disabled={pagination.current === 1}
           className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -423,7 +427,7 @@ export default function ClassesPage(): React.ReactElement {
           return (
             <button
               key={pageNum}
-              onClick={() => setPagination({ ...pagination, current: pageNum })}
+              onClick={() => setPagination(prev => ({ ...prev, current: pageNum }))}
               className={`px-3 py-1 rounded ${
                 pagination.current === pageNum
                   ? 'bg-cyan-700 text-white'
@@ -441,7 +445,7 @@ export default function ClassesPage(): React.ReactElement {
           <>
             <span className="px-2">...</span>
             <button
-              onClick={() => setPagination({ ...pagination, current: pagination.pages })}
+              onClick={() => setPagination(prev => ({ ...prev, current: pagination.pages }))}
               className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
               type="button"
               aria-label={`Go to page ${pagination.pages}`}
@@ -453,10 +457,10 @@ export default function ClassesPage(): React.ReactElement {
 
         <button
           onClick={() =>
-            setPagination({
-              ...pagination,
-              current: Math.min(pagination.pages, pagination.current + 1),
-            })
+            setPagination(prev => ({
+              ...prev,
+              current: Math.min(pagination.pages, prev.current + 1),
+            }))
           }
           disabled={pagination.current === pagination.pages}
           className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"

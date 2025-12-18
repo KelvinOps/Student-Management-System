@@ -1,10 +1,9 @@
 // app/(dashboard)/staff-management/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Search,
-  Filter,
   Plus,
   Download,
   MoreVertical,
@@ -59,30 +58,36 @@ export default function StaffManagementPage(): React.ReactElement {
   });
   const [showActions, setShowActions] = useState<string | null>(null);
 
-  // Fetch users
-  const fetchUsers = async (): Promise<void> => {
-    setLoading(true);
-    const result = await getUsers({
-      search: searchTerm,
-      role: roleFilter || undefined,
-      limit: pagination.limit,
-      page: pagination.current,
-    });
+// Extract current and limit from pagination for dependencies
+const { current: currentPage, limit: pageLimit } = pagination;
 
-    if (result.success && result.data) {
-      setUsers(result.data as UserData[]);
-      if (result.pagination) {
-        setPagination(result.pagination);
-      }
-    } else {
-      toast.error(result.error || 'Failed to fetch staff');
+// Fetch users - wrapped in useCallback to stabilize the reference
+const fetchUsers = useCallback(async (): Promise<void> => {
+  setLoading(true);
+  const result = await getUsers({
+    search: searchTerm,
+    role: roleFilter || undefined,
+    limit: pageLimit,  // Changed from pagination.limit
+    page: currentPage, // Changed from pagination.current
+  });
+
+  if (result.success && result.data) {
+    setUsers(result.data as UserData[]);
+    if (result.pagination) {
+      setPagination(prev => ({
+        ...prev,
+        ...result.pagination
+      }));
     }
-    setLoading(false);
-  };
+  } else {
+    toast.error(result.error || 'Failed to fetch staff');
+  }
+  setLoading(false);
+}, [searchTerm, roleFilter, currentPage, pageLimit]); // Dependencies are correct
 
-  useEffect(() => {
-    fetchUsers();
-  }, [pagination.current, pagination.limit, searchTerm, roleFilter]);
+useEffect(() => {
+  fetchUsers();
+}, [fetchUsers]);
 
   // Handle export
   const handleExport = async (): Promise<void> => {
@@ -207,7 +212,7 @@ export default function StaffManagementPage(): React.ReactElement {
             <select
               value={pagination.limit}
               onChange={(e) =>
-                setPagination({ ...pagination, limit: Number(e.target.value), current: 1 })
+                setPagination(prev => ({ ...prev, limit: Number(e.target.value), current: 1 }))
               }
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             >
@@ -403,7 +408,7 @@ export default function StaffManagementPage(): React.ReactElement {
       <div className="flex items-center justify-center gap-2">
         <button
           onClick={() =>
-            setPagination({ ...pagination, current: Math.max(1, pagination.current - 1) })
+            setPagination(prev => ({ ...prev, current: Math.max(1, prev.current - 1) }))
           }
           disabled={pagination.current === 1}
           className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -428,7 +433,7 @@ export default function StaffManagementPage(): React.ReactElement {
           return (
             <button
               key={pageNum}
-              onClick={() => setPagination({ ...pagination, current: pageNum })}
+              onClick={() => setPagination(prev => ({ ...prev, current: pageNum }))}
               className={`px-3 py-1 rounded ${
                 pagination.current === pageNum
                   ? 'bg-cyan-700 text-white'
@@ -444,10 +449,10 @@ export default function StaffManagementPage(): React.ReactElement {
 
         <button
           onClick={() =>
-            setPagination({
-              ...pagination,
-              current: Math.min(pagination.pages, pagination.current + 1),
-            })
+            setPagination(prev => ({
+              ...prev,
+              current: Math.min(pagination.pages, prev.current + 1),
+            }))
           }
           disabled={pagination.current === pagination.pages}
           className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"

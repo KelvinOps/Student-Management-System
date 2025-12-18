@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Building2, Users, DoorOpen, Search, Filter, Eye, Plus } from 'lucide-react';
 import { getHostelBlocks } from '@/actions/hostel';
@@ -47,11 +47,7 @@ export default function HostelBuildingsPage() {
     limit: 15,
   });
 
-  useEffect(() => {
-    loadBlocks();
-  }, [genderFilter, currentPage]);
-
-  const loadBlocks = async () => {
+  const loadBlocks = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getHostelBlocks({
@@ -70,7 +66,11 @@ export default function HostelBuildingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [genderFilter, currentPage]);
+
+  useEffect(() => {
+    loadBlocks();
+  }, [loadBlocks]);
 
   const getGenderColor = (gender: string) => {
     return gender === 'MALE' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800';

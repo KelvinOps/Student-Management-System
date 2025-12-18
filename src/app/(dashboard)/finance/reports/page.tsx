@@ -162,16 +162,20 @@ export default function FinanceReportsPage() {
   const [departmentData, setDepartmentData] = useState<DepartmentReportData | null>(null);
   const [cashFlowData, setCashFlowData] = useState<CashFlowReportData | null>(null);
 
+  // Initialize filters with session as undefined instead of empty string
   const [filters, setFilters] = useState<ReportFilters>({
     academicYear: new Date().getFullYear().toString(),
-    session: '',
+    session: undefined,
     departmentId: '',
     programmeId: '',
     classId: '',
   });
 
-  const handleFilterChange = (key: keyof ReportFilters, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+  const handleFilterChange = (key: keyof ReportFilters, value: string | undefined) => {
+    setFilters((prev) => ({ 
+      ...prev, 
+      [key]: value === '' ? undefined : value 
+    }));
   };
 
   const generateReport = async (reportType: string) => {
@@ -231,13 +235,49 @@ export default function FinanceReportsPage() {
     }).format(new Date(date));
   };
 
-  const exportToCSV = (data: Record<string, unknown>[], filename: string) => {
+  // Helper function to convert PaymentDetail to CSV row
+  const convertPaymentToCSVRow = (payment: PaymentDetail): Record<string, unknown> => {
+    return {
+      'Payment ID': payment.id,
+      'Payment Date': formatDate(payment.paymentDate),
+      'Amount Paid': payment.amountPaid,
+      'Payment Method': payment.paymentMethod,
+      'Transaction Reference': payment.transactionRef,
+      'Student Name': `${payment.student.firstName} ${payment.student.lastName}`,
+      'Admission Number': payment.student.admissionNumber,
+      'Programme': payment.student.programme.name,
+    };
+  };
+
+  // Helper function to convert OutstandingFeeRecord to CSV row
+  const convertOutstandingToCSVRow = (record: OutstandingFeeRecord): Record<string, unknown> => {
+    return {
+      'Student ID': record.studentId,
+      'Admission Number': record.admissionNumber,
+      'Student Name': record.name,
+      'Programme': record.programme,
+      'Department': record.department,
+      'Class': record.class,
+      'Total Fee': record.totalFee,
+      'Total Paid': record.totalPaid,
+      'Balance': record.balance,
+      'Percentage Paid': record.percentagePaid,
+    };
+  };
+
+  // Generic export function
+  const exportToCSV = <T,>(
+    data: T[], 
+    converter: (item: T) => Record<string, unknown>, 
+    filename: string
+  ) => {
     if (!data || data.length === 0) return;
     
-    const headers = Object.keys(data[0]);
+    const csvData = data.map(converter);
+    const headers = Object.keys(csvData[0]);
     const csvContent = [
       headers.join(','),
-      ...data.map((row) => 
+      ...csvData.map((row) => 
         headers.map((h) => {
           const value = row[h];
           if (value === null || value === undefined) return '';
@@ -251,7 +291,7 @@ export default function FinanceReportsPage() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${filename}.csv`;
+    a.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -311,7 +351,7 @@ export default function FinanceReportsPage() {
                 id="dateFrom"
                 type="date"
                 onChange={(e) =>
-                  handleFilterChange('dateFrom', new Date(e.target.value).toISOString())
+                  handleFilterChange('dateFrom', e.target.value ? new Date(e.target.value).toISOString() : undefined)
                 }
               />
             </div>
@@ -321,7 +361,7 @@ export default function FinanceReportsPage() {
                 id="dateTo"
                 type="date"
                 onChange={(e) =>
-                  handleFilterChange('dateTo', new Date(e.target.value).toISOString())
+                  handleFilterChange('dateTo', e.target.value ? new Date(e.target.value).toISOString() : undefined)
                 }
               />
             </div>
@@ -408,7 +448,11 @@ export default function FinanceReportsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => exportToCSV(collectionData.payments, 'collection-report')}
+                    onClick={() => exportToCSV(
+                      collectionData.payments, 
+                      convertPaymentToCSVRow, 
+                      'collection-report'
+                    )}
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Export CSV
@@ -533,9 +577,11 @@ export default function FinanceReportsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                      exportToCSV(outstandingData.outstandingFees, 'outstanding-fees')
-                    }
+                    onClick={() => exportToCSV(
+                      outstandingData.outstandingFees, 
+                      convertOutstandingToCSVRow, 
+                      'outstanding-fees'
+                    )}
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Export CSV

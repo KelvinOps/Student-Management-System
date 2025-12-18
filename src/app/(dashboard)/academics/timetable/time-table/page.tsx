@@ -1,8 +1,8 @@
 // app/(dashboard)/academics/timetable/time-table/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Download, Printer, Filter, Calendar } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { Download, Printer } from 'lucide-react'; // Removed unused Filter and Calendar imports
 import { getTimetableEntries } from '@/actions/timetable';
 import { getClasses } from '@/actions/class';
 
@@ -59,27 +59,10 @@ export default function TimetablePage() {
   const [selectedClass, setSelectedClass] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadClasses();
-  }, []);
-
-  useEffect(() => {
-    if (selectedClass) {
-      loadTimetable();
-    }
-  }, [selectedClass]);
-
-  const loadClasses = async () => {
-    const result = await getClasses();
-    if (result.success && Array.isArray(result.data)) {
-      setClasses(result.data);
-      if (result.data.length > 0) {
-        setSelectedClass(result.data[0].id);
-      }
-    }
-  };
-
-  const loadTimetable = async () => {
+  // Define loadTimetable with useCallback
+  const loadTimetable = useCallback(async () => {
+    if (!selectedClass) return;
+    
     setLoading(true);
     try {
       const result = await getTimetableEntries(selectedClass);
@@ -90,6 +73,26 @@ export default function TimetablePage() {
       console.error('Error loading timetable:', error);
     } finally {
       setLoading(false);
+    }
+  }, [selectedClass]); // Add selectedClass as dependency
+
+  useEffect(() => {
+    loadClasses();
+  }, []);
+
+  useEffect(() => {
+    if (selectedClass) {
+      loadTimetable();
+    }
+  }, [selectedClass, loadTimetable]); // Add loadTimetable to dependencies
+
+  const loadClasses = async () => {
+    const result = await getClasses();
+    if (result.success && Array.isArray(result.data)) {
+      setClasses(result.data);
+      if (result.data.length > 0) {
+        setSelectedClass(result.data[0].id);
+      }
     }
   };
 

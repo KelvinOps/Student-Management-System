@@ -1,9 +1,10 @@
 // app/(dashboard)/layout.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   LayoutDashboard,
   Users,
@@ -98,24 +99,7 @@ export default function DashboardLayout({
   const [authLoading, setAuthLoading] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  // Check authentication on mount
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  // Auto-expand menus based on current path
-  useEffect(() => {
-    navigation.forEach((item) => {
-      if (item.children) {
-        const isActive = item.children.some((child) => pathname?.startsWith(child.href));
-        if (isActive && !expandedMenus.includes(item.name)) {
-          setExpandedMenus([...expandedMenus, item.name]);
-        }
-      }
-    });
-  }, [pathname]);
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const response = await fetch('/api/auth/me');
       
@@ -132,7 +116,32 @@ export default function DashboardLayout({
     } finally {
       setAuthLoading(false);
     }
-  };
+  }, [router]);
+
+  // Check authentication on mount
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  // Auto-expand menus based on current path
+  useEffect(() => {
+    const newExpandedMenus = [...expandedMenus];
+    let hasChanges = false;
+    
+    navigation.forEach((item) => {
+      if (item.children) {
+        const isActive = item.children.some((child) => pathname?.startsWith(child.href));
+        if (isActive && !newExpandedMenus.includes(item.name)) {
+          newExpandedMenus.push(item.name);
+          hasChanges = true;
+        }
+      }
+    });
+    
+    if (hasChanges) {
+      setExpandedMenus(newExpandedMenus);
+    }
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleMenu = (name: string) => {
     setExpandedMenus((prev) =>
@@ -230,9 +239,11 @@ export default function DashboardLayout({
                 className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-cyan-800 transition"
               >
                 {user.avatar ? (
-                  <img 
+                  <Image 
                     src={user.avatar} 
-                    alt={user.firstName}
+                    alt={`${user.firstName} ${user.lastName}`}
+                    width={32}
+                    height={32}
                     className="w-8 h-8 rounded-full object-cover"
                   />
                 ) : (
@@ -315,9 +326,11 @@ export default function DashboardLayout({
           <div className="lg:hidden p-4 border-b bg-gray-50">
             <div className="flex items-center gap-3">
               {user.avatar ? (
-                <img 
+                <Image 
                   src={user.avatar} 
-                  alt={user.firstName}
+                  alt={`${user.firstName} ${user.lastName}`}
+                  width={48}
+                  height={48}
                   className="w-12 h-12 rounded-full object-cover"
                 />
               ) : (

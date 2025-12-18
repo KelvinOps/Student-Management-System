@@ -1,9 +1,9 @@
 // app/(dashboard)/academics/marks/entry/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Save, Search, Filter, Download } from 'lucide-react';
-import { getMarksEntries, createMarksEntry, updateMarksEntry } from '@/actions/marks';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { Save } from 'lucide-react'; // Removed unused Search, Filter, Download imports
+import { createMarksEntry } from '@/actions/marks'; // Removed unused getMarksEntries, updateMarksEntry
 import { getClasses } from '@/actions/class';
 import { getSubjects } from '@/actions/subject';
 import { getSubjectStudents } from '@/actions/subject';
@@ -26,13 +26,6 @@ interface Student {
   firstName: string;
   lastName: string;
   middleName: string | null;
-}
-
-interface SubjectRegistration {
-  student: Student;
-  id: string;
-  studentId: string;
-  subjectId: string;
 }
 
 interface SubjectRegistration {
@@ -66,19 +59,6 @@ interface MarksEntryInput {
   enteredBy: string;
 }
 
-interface MarksEntryInput {
-  studentId: string;
-  subjectId: string;
-  classCode: string;
-  cohort: string;
-  session: string;
-  scheduleType: string;
-  examType: string;
-  cat?: number;
-  practical?: number;
-  enteredBy: string;
-}
-
 export default function MarksEntryPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -97,27 +77,8 @@ export default function MarksEntryPage() {
     loadSubjects();
   }, []);
 
-  useEffect(() => {
-    if (selectedSubject) {
-      loadStudents();
-    }
-  }, [selectedSubject]);
-
-  const loadClasses = async () => {
-    const result = await getClasses();
-    if (result.success && Array.isArray(result.data)) {
-      setClasses(result.data);
-    }
-  };
-
-  const loadSubjects = async () => {
-    const result = await getSubjects();
-    if (result.success && Array.isArray(result.data)) {
-      setSubjects(result.data);
-    }
-  };
-
-  const loadStudents = async () => {
+  // Define loadStudents with useCallback to make it stable
+  const loadStudents = useCallback(async () => {
     if (!selectedSubject) return;
     
     setLoading(true);
@@ -130,6 +91,26 @@ export default function MarksEntryPage() {
       console.error('Error loading students:', error);
     } finally {
       setLoading(false);
+    }
+  }, [selectedSubject]); // Add selectedSubject as dependency
+
+  useEffect(() => {
+    if (selectedSubject) {
+      loadStudents();
+    }
+  }, [selectedSubject, loadStudents]); // Add loadStudents to dependencies
+
+  const loadClasses = async () => {
+    const result = await getClasses();
+    if (result.success && Array.isArray(result.data)) {
+      setClasses(result.data);
+    }
+  };
+
+  const loadSubjects = async () => {
+    const result = await getSubjects();
+    if (result.success && Array.isArray(result.data)) {
+      setSubjects(result.data);
     }
   };
 

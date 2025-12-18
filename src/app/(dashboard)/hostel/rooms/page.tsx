@@ -2,10 +2,11 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Filter, Eye, AlertCircle, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Eye } from 'lucide-react';
 import { getRoomsByBlock, getHostelBlocks } from '@/actions/hostel';
 import Link from 'next/link';
+import type { FloorLevel } from '@prisma/client';
 
 interface Block {
   id: string;
@@ -56,6 +57,19 @@ interface Pagination {
 
 type Gender = 'MALE' | 'FEMALE';
 
+// Helper function to convert string to FloorLevel enum
+const toFloorLevel = (level: string): FloorLevel | undefined => {
+  // Check if the string matches one of the FloorLevel enum values
+  // You need to know the actual enum values from your Prisma schema
+  // Common values are: 'GROUND', 'FIRST', 'SECOND', 'THIRD', etc.
+  const validLevels: string[] = ['GROUND', 'FIRST', 'SECOND']; // Add all your enum values here
+  
+  if (validLevels.includes(level.toUpperCase())) {
+    return level.toUpperCase() as FloorLevel;
+  }
+  return undefined;
+};
+
 export default function HostelRoomsPage() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -66,17 +80,7 @@ export default function HostelRoomsPage() {
   const [pagination, setPagination] = useState<Pagination>({ total: 0, totalPages: 0 });
   const [genderFilter, setGenderFilter] = useState<string>('');
 
-  useEffect(() => {
-    loadBlocks();
-  }, [genderFilter]);
-
-  useEffect(() => {
-    if (selectedBlock) {
-      loadRooms();
-    }
-  }, [selectedBlock, selectedFloor, currentPage]);
-
-  const loadBlocks = async () => {
+  const loadBlocks = useCallback(async () => {
     try {
       const result = await getHostelBlocks({
         gender: genderFilter ? (genderFilter as Gender) : undefined,
@@ -86,22 +90,25 @@ export default function HostelRoomsPage() {
 
       if (result.success && Array.isArray(result.data)) {
         setBlocks(result.data);
-        if (result.data.length > 0) {
+        if (result.data.length > 0 && !selectedBlock) {
           setSelectedBlock(result.data[0].id);
         }
       }
     } catch (error) {
       console.error('Error loading blocks:', error);
     }
-  };
+  }, [genderFilter, selectedBlock]);
 
-  const loadRooms = async () => {
+  const loadRooms = useCallback(async () => {
     if (!selectedBlock) return;
 
     setLoading(true);
     try {
+      // Convert the selected floor string to the correct FloorLevel enum type
+      const floorLevel = selectedFloor ? toFloorLevel(selectedFloor) : undefined;
+      
       const result = await getRoomsByBlock(selectedBlock, {
-        floorLevel: selectedFloor || undefined,
+        floorLevel: floorLevel,
         page: currentPage,
         limit: 20,
       });
@@ -115,7 +122,15 @@ export default function HostelRoomsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedBlock, selectedFloor, currentPage]);
+
+  useEffect(() => {
+    loadBlocks();
+  }, [loadBlocks]);
+
+  useEffect(() => {
+    loadRooms();
+  }, [loadRooms]);
 
   const getRoomStatusColor = (status: string) => {
     switch (status) {

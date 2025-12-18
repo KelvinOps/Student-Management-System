@@ -1,9 +1,9 @@
 // src/app/(dashboard)/finance/invoices/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react'; // Removed unused useEffect import
 import Link from 'next/link';
-import { FileText, Plus, Download, Eye, Search, Filter, Calendar } from 'lucide-react';
+import { FileText, Plus, Download, Eye, Search, Filter } from 'lucide-react'; // Removed unused Calendar import
 import { generateBulkInvoices, type Invoice } from '@/actions/invoice';
 
 // Define session type to match your Prisma enum
@@ -22,7 +22,7 @@ interface Filters {
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false); // Removed setLoading since it's not used
   const [showFilters, setShowFilters] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generating, setGenerating] = useState(false);

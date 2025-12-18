@@ -67,27 +67,7 @@ export default function StudentSearchPage() {
     loadFilterData();
   }, []);
 
-  // Auto-search with debounce
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      handleSearch();
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, filters]);
-
-  const loadFilterData = async () => {
-    try {
-      const result = await getSearchFiltersData();
-      if (result.success && result.data) {
-        setFilterData(result.data);
-      }
-    } catch (err) {
-      console.error("Error loading filter data:", err);
-      setError("Failed to load filter options");
-    }
-  };
-
+  // Define handleSearch with useCallback to stabilize the reference
   const handleSearch = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -114,6 +94,27 @@ export default function StudentSearchPage() {
       setLoading(false);
     }
   }, [searchTerm, filters]);
+
+  // Auto-search with debounce
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      handleSearch();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, filters, handleSearch]); // Added handleSearch to dependency array
+
+  const loadFilterData = async () => {
+    try {
+      const result = await getSearchFiltersData();
+      if (result.success && result.data) {
+        setFilterData(result.data);
+      }
+    } catch (err) {
+      console.error("Error loading filter data:", err);
+      setError("Failed to load filter options");
+    }
+  };
 
   const resetFilters = () => {
     setSearchTerm("");

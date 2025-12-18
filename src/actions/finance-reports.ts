@@ -2,11 +2,11 @@
 'use server';
 
 import { prisma } from '@/app/lib/prisma';
-import { Prisma } from '@prisma/client';
+import { Prisma, Session } from '@prisma/client';
 
 export interface ReportFilters {
   academicYear?: string;
-  session?: string;
+  session?: Session;
   departmentId?: string;
   programmeId?: string;
   classId?: string;

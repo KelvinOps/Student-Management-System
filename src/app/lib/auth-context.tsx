@@ -1,3 +1,4 @@
+// src/app/lib/auth-context.tsx
 'use client';
 
 import React, {
@@ -68,8 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setUser(null);
       }
-    } catch (error) {
-      console.error('Auth check failed:', error);
+    } catch (err) {
+      console.error('Auth check failed:', err);
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -92,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(data.user);
       return { success: true };
-    } catch (error) {
+    } catch {
       return { success: false, error: 'An error occurred during login' };
     }
   };
@@ -112,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       return { success: true };
-    } catch (error) {
+    } catch {
       return { success: false, error: 'An error occurred during registration' };
     }
   };
@@ -120,8 +121,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch (err) {
+      console.error('Logout error:', err);
     } finally {
       setUser(null);
       router.push('/login');
@@ -132,18 +133,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await checkAuth();
   };
 
+  const value: AuthContextType = {
+    user,
+    isLoading,
+    isAuthenticated: !!user,
+    login,
+    register,
+    logout,
+    refreshUser,
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        isAuthenticated: !!user,
-        login,
-        register,
-        logout,
-        refreshUser,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Plus, Search, Filter, Download, Upload, FileDown, Eye, Edit, Trash2 } from 'lucide-react';
 import { getStudents, deleteStudent } from '@/actions/student';
@@ -72,18 +72,7 @@ export default function StudentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
 
-  useEffect(() => {
-    loadDepartments();
-    loadClasses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    loadStudents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, itemsPerPage, searchTerm, filters]);
-
-  const loadDepartments = async () => {
+  const loadDepartments = useCallback(async () => {
     try {
       const result = await getDepartments();
       if (result.success && Array.isArray(result.data)) {
@@ -92,9 +81,9 @@ export default function StudentsPage() {
     } catch (error) {
       console.error('Error loading departments:', error);
     }
-  };
+  }, []);
 
-  const loadClasses = async () => {
+  const loadClasses = useCallback(async () => {
     try {
       const result = await getClasses();
       if (result.success && Array.isArray(result.data)) {
@@ -103,9 +92,9 @@ export default function StudentsPage() {
     } catch (error) {
       console.error('Error loading classes:', error);
     }
-  };
+  }, []);
 
-  const loadStudents = async () => {
+  const loadStudents = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getStudents({
@@ -126,7 +115,16 @@ export default function StudentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, itemsPerPage, searchTerm, filters]);
+
+  useEffect(() => {
+    loadDepartments();
+    loadClasses();
+  }, [loadDepartments, loadClasses]);
+
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this student?')) {

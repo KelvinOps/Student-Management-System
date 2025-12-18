@@ -2,10 +2,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Download, Printer, FileText } from 'lucide-react';
-import { generateStudentTranscript } from '@/actions/exam';
+import { Search, Download, Printer } from 'lucide-react';
+import { generateStudentTranscript } from '@/actions/exam'; // Fixed: removed unused imports
 import { getStudents } from '@/actions/student';
-import { calculateGrade, calculateCompetence } from '@/actions/exam';
 
 interface Student {
   id: string;
@@ -15,16 +14,21 @@ interface Student {
   middleName: string | null;
   gender: string;
   dateOfBirth: Date;
-  class: {
+  class?: {
     code: string;
     name: string;
+    programme?: {
+      name: string;
+      code: string;
+    };
   };
-  programme: {
+  programme?: {
     name: string;
     code: string;
   };
-  department: {
+  department?: {
     name: string;
+    code: string;
   };
 }
 
@@ -64,6 +68,24 @@ interface TranscriptData {
   examResults: ExamResult[];
 }
 
+// Local synchronous versions of calculateGrade and calculateCompetence
+const calculateGradeSync = (score: number): string => {
+  if (score >= 90) return 'A+';
+  if (score >= 80) return 'A';
+  if (score >= 75) return 'B+';
+  if (score >= 70) return 'B';
+  if (score >= 65) return 'C+';
+  if (score >= 60) return 'C';
+  if (score >= 50) return 'D';
+  return 'E';
+};
+
+const calculateCompetenceSync = (score: number): string => {
+  if (score >= 80) return 'C';
+  if (score >= 60) return 'P';
+  return 'I';
+};
+
 export default function TranscriptsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState('');
@@ -76,9 +98,13 @@ export default function TranscriptsPage() {
   }, []);
 
   const loadStudents = async () => {
-    const result = await getStudents({ page: 1, limit: 1000 });
-    if (result.success && Array.isArray(result.data)) {
-      setStudents(result.data);
+    try {
+      const result = await getStudents({ page: 1, limit: 1000 });
+      if (result.success && Array.isArray(result.data)) {
+        setStudents(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading students:', error);
     }
   };
 
@@ -89,9 +115,10 @@ export default function TranscriptsPage() {
     try {
       const result = await generateStudentTranscript(studentId);
       if (result.success && result.data) {
-        setTranscriptData(result.data);
+        // Type assertion to handle the API response
+        setTranscriptData(result.data as unknown as TranscriptData);
       } else {
-        alert('Failed to load transcript');
+        alert(result.error || 'Failed to load transcript');
       }
     } catch (error) {
       console.error('Error loading transcript:', error);
@@ -103,13 +130,47 @@ export default function TranscriptsPage() {
 
   const handleStudentChange = (studentId: string) => {
     setSelectedStudent(studentId);
-    loadTranscript(studentId);
+    if (studentId) {
+      loadTranscript(studentId);
+    } else {
+      setTranscriptData(null);
+    }
   };
 
   const calculateSessionAverage = (marks: MarksEntry[]) => {
     const totals = marks.map((m) => m.total).filter((t): t is number => t !== null);
     if (totals.length === 0) return 0;
-    return totals.reduce((a, b) => a + b, 0) / totals.length;
+    const sum = totals.reduce((a, b) => a + b, 0);
+    return sum / totals.length;
+  };
+
+  const calculateSessionCredits = (marks: MarksEntry[]) => {
+    return marks.reduce((total, mark) => total + (mark.subject?.credits || 0), 0);
+  };
+
+  const calculateCumulativeGPA = () => {
+    if (!transcriptData || Object.keys(transcriptData.marksBySession).length === 0) return 0;
+
+    let totalGradePoints = 0;
+    let totalCredits = 0;
+
+    Object.values(transcriptData.marksBySession).forEach((marks) => {
+      marks.forEach((mark) => {
+        if (mark.total !== null && (mark.subject?.credits || 0) > 0) {
+          // Convert percentage to GPA (4.0 scale)
+          const gpa = mark.total >= 90 ? 4.0 :
+                      mark.total >= 80 ? 3.5 :
+                      mark.total >= 70 ? 3.0 :
+                      mark.total >= 60 ? 2.5 :
+                      mark.total >= 50 ? 2.0 : 0.0;
+          
+          totalGradePoints += gpa * (mark.subject?.credits || 0);
+          totalCredits += (mark.subject?.credits || 0);
+        }
+      });
+    });
+
+    return totalCredits > 0 ? totalGradePoints / totalCredits : 0;
   };
 
   const handlePrint = () => {
@@ -117,6 +178,7 @@ export default function TranscriptsPage() {
   };
 
   const handleDownload = () => {
+    // TODO: Implement PDF download
     alert('PDF download functionality coming soon!');
   };
 
@@ -135,6 +197,70 @@ export default function TranscriptsPage() {
       month: 'long',
       year: 'numeric',
     });
+  };
+
+  const getGradeColor = (grade: string) => {
+    switch (grade) {
+      case 'A+': return 'text-green-700';
+      case 'A': return 'text-green-600';
+      case 'B+': return 'text-blue-600';
+      case 'B': return 'text-blue-500';
+      case 'C+': return 'text-yellow-600';
+      case 'C': return 'text-yellow-500';
+      case 'D': return 'text-orange-500';
+      case 'E': return 'text-red-600';
+      default: return 'text-gray-700';
+    }
+  };
+
+  const getCompetenceColor = (competence: string) => {
+    switch (competence) {
+      case 'C': return 'text-green-600';
+      case 'P': return 'text-yellow-600';
+      case 'I': return 'text-red-600';
+      default: return 'text-gray-700';
+    }
+  };
+
+  // Helper functions to safely access nested properties
+  const getProgrammeName = () => {
+    if (!transcriptData?.student) return 'N/A';
+    return transcriptData.student.programme?.name || 
+           transcriptData.student.class?.programme?.name || 
+           'N/A';
+  };
+
+  const getProgrammeCode = () => {
+    if (!transcriptData?.student) return 'N/A';
+    return transcriptData.student.programme?.code || 
+           transcriptData.student.class?.programme?.code || 
+           'N/A';
+  };
+
+  const getDepartmentName = () => {
+    if (!transcriptData?.student) return 'N/A';
+    return transcriptData.student.department?.name || 'N/A';
+  };
+
+  const getDepartmentCode = () => {
+    if (!transcriptData?.student) return 'N/A';
+    return transcriptData.student.department?.code || 'N/A';
+  };
+
+  const getClassCode = () => {
+    if (!transcriptData?.student) return 'N/A';
+    return transcriptData.student.class?.code || 'N/A';
+  };
+
+  const getClassName = () => {
+    if (!transcriptData?.student) return 'N/A';
+    return transcriptData.student.class?.name || 'N/A';
+  };
+
+  const getStudentName = () => {
+    if (!transcriptData?.student) return '';
+    const { firstName, middleName, lastName } = transcriptData.student;
+    return `${firstName} ${middleName || ''} ${lastName}`.trim();
   };
 
   return (
@@ -162,7 +288,7 @@ export default function TranscriptsPage() {
                 placeholder="Search by admission no. or name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-700"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-700 focus:border-transparent"
               />
             </div>
           </div>
@@ -174,7 +300,8 @@ export default function TranscriptsPage() {
             <select
               value={selectedStudent}
               onChange={(e) => handleStudentChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-700"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-700 focus:border-transparent"
+              disabled={loading}
             >
               <option value="">Select Student</option>
               {filteredStudents.map((student) => (
@@ -190,14 +317,14 @@ export default function TranscriptsPage() {
           <div className="mt-4 flex gap-3">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-2 px-4 py-2 bg-cyan-700 text-white rounded-lg hover:bg-cyan-800"
+              className="flex items-center gap-2 px-4 py-2 bg-cyan-700 text-white rounded-lg hover:bg-cyan-800 transition-colors"
             >
               <Printer size={18} />
               Print Transcript
             </button>
             <button
               onClick={handleDownload}
-              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
             >
               <Download size={18} />
               Download PDF
@@ -208,68 +335,115 @@ export default function TranscriptsPage() {
 
       {/* Transcript Content */}
       {loading && (
-        <div className="text-center py-12 text-gray-500">
-          Loading transcript...
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-700"></div>
+          <p className="mt-2 text-gray-500">Loading transcript...</p>
         </div>
       )}
 
       {!loading && transcriptData && (
-        <div className="bg-white rounded-lg shadow p-8 print:shadow-none">
+        <div className="bg-white rounded-lg shadow p-8 print:shadow-none print:p-0">
           {/* Header */}
           <div className="text-center border-b pb-6 mb-6">
-            <h1 className="text-2xl font-bold text-cyan-700">
-              KONGONI TECHNICAL AND VOCATIONAL COLLEGE
-            </h1>
-            <p className="text-lg font-semibold mt-2">ACADEMIC TRANSCRIPT</p>
-            <p className="text-sm text-gray-600 mt-1">Official Record of Academic Performance</p>
+            <div className="flex items-center justify-center gap-4 mb-4">
+              {/* College Logo/Stamp */}
+              <div className="w-16 h-16 border-2 border-cyan-700 rounded-full flex items-center justify-center">
+                <span className="text-cyan-700 font-bold text-xs">KTVC</span>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-cyan-700">
+                  KONGONI TECHNICAL AND VOCATIONAL COLLEGE
+                </h1>
+                <p className="text-lg font-semibold mt-2">ACADEMIC TRANSCRIPT</p>
+                <p className="text-sm text-gray-600 mt-1">Official Record of Academic Performance</p>
+              </div>
+            </div>
           </div>
 
           {/* Student Information */}
-          <div className="grid grid-cols-2 gap-6 mb-8">
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Student Information</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex">
-                  <span className="font-medium w-40">Admission Number:</span>
-                  <span>{transcriptData.student.admissionNumber}</span>
-                </div>
-                <div className="flex">
-                  <span className="font-medium w-40">Name:</span>
-                  <span>
-                    {transcriptData.student.firstName} {transcriptData.student.middleName}{' '}
-                    {transcriptData.student.lastName}
-                  </span>
-                </div>
-                <div className="flex">
-                  <span className="font-medium w-40">Gender:</span>
-                  <span>{transcriptData.student.gender}</span>
-                </div>
-                <div className="flex">
-                  <span className="font-medium w-40">Date of Birth:</span>
-                  <span>{formatDate(transcriptData.student.dateOfBirth)}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 print:grid-cols-2">
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Student Information</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-medium">Admission Number:</span>
+                    <span className="font-bold">{transcriptData.student.admissionNumber}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Name:</span>
+                    <span>{getStudentName()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Gender:</span>
+                    <span>{transcriptData.student.gender}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Date of Birth:</span>
+                    <span>{formatDate(transcriptData.student.dateOfBirth)}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Programme Information</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex">
-                  <span className="font-medium w-40">Department:</span>
-                  <span>{transcriptData.student.department.name}</span>
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Programme Information</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-medium">Department:</span>
+                    <span>{getDepartmentName()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Department Code:</span>
+                    <span>{getDepartmentCode()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Programme:</span>
+                    <span className="font-medium">{getProgrammeName()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Programme Code:</span>
+                    <span>{getProgrammeCode()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Current Class:</span>
+                    <span>{getClassCode()} - {getClassName()}</span>
+                  </div>
                 </div>
-                <div className="flex">
-                  <span className="font-medium w-40">Programme:</span>
-                  <span>{transcriptData.student.programme.name}</span>
-                </div>
-                <div className="flex">
-                  <span className="font-medium w-40">Programme Code:</span>
-                  <span>{transcriptData.student.programme.code}</span>
-                </div>
-                <div className="flex">
-                  <span className="font-medium w-40">Current Class:</span>
-                  <span>{transcriptData.student.class.code}</span>
-                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Summary Statistics */}
+          <div className="mb-8 p-4 bg-cyan-50 rounded-lg print:bg-white print:border">
+            <h3 className="font-semibold text-gray-900 mb-4">Academic Summary</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <p className="text-sm text-gray-600">Total Sessions</p>
+                <p className="text-2xl font-bold text-cyan-700">
+                  {Object.keys(transcriptData.marksBySession).length}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600">Total Subjects</p>
+                <p className="text-2xl font-bold text-cyan-700">
+                  {Object.values(transcriptData.marksBySession).flat().length}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600">Total Credits</p>
+                <p className="text-2xl font-bold text-cyan-700">
+                  {Object.values(transcriptData.marksBySession).reduce(
+                    (total, marks) => total + calculateSessionCredits(marks), 0
+                  )}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600">Cumulative GPA</p>
+                <p className="text-2xl font-bold text-cyan-700">
+                  {calculateCumulativeGPA().toFixed(2)} / 4.0
+                </p>
               </div>
             </div>
           </div>
@@ -280,118 +454,170 @@ export default function TranscriptsPage() {
               Academic Performance
             </h3>
 
-            {Object.entries(transcriptData.marksBySession).map(([session, marks]) => (
-              <div key={session} className="print-break-avoid">
-                <h4 className="font-semibold text-gray-800 mb-3 bg-gray-50 px-4 py-2 rounded">
-                  {formatSession(session)}
-                </h4>
+            {Object.entries(transcriptData.marksBySession).map(([session, marks]) => {
+              const sessionAverage = calculateSessionAverage(marks);
+              const sessionCredits = calculateSessionCredits(marks);
+              const sessionGrade = calculateGradeSync(sessionAverage);
+              
+              return (
+                <div key={session} className="print-break-avoid mb-8">
+                  <div className="flex justify-between items-center mb-4 p-3 bg-gray-50 rounded-lg">
+                    <h4 className="font-semibold text-gray-800">
+                      {formatSession(session)}
+                    </h4>
+                    <div className="text-sm">
+                      <span className="font-medium mr-4">
+                        Average: <span className="font-bold">{sessionAverage.toFixed(2)}%</span>
+                      </span>
+                      <span className="font-medium mr-4">
+                        Grade: <span className={`font-bold ${getGradeColor(sessionGrade)}`}>{sessionGrade}</span>
+                      </span>
+                      <span className="font-medium">
+                        Credits: <span className="font-bold">{sessionCredits}</span>
+                      </span>
+                    </div>
+                  </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="border px-3 py-2 text-left">Subject Code</th>
-                        <th className="border px-3 py-2 text-left">Subject Name</th>
-                        <th className="border px-3 py-2 text-center">Credits</th>
-                        <th className="border px-3 py-2 text-center">CAT</th>
-                        <th className="border px-3 py-2 text-center">Practical</th>
-                        <th className="border px-3 py-2 text-center">Total</th>
-                        <th className="border px-3 py-2 text-center">Grade</th>
-                        <th className="border px-3 py-2 text-center">Competence</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {marks.map((mark) => {
-                        const grade = mark.total ? calculateGrade(mark.total) : '-';
-                        const competence = mark.total ? calculateCompetence(mark.total) : '-';
-                        
-                        return (
-                          <tr key={mark.id}>
-                            <td className="border px-3 py-2">{mark.subject.code}</td>
-                            <td className="border px-3 py-2">{mark.subject.name}</td>
-                            <td className="border px-3 py-2 text-center">{mark.subject.credits}</td>
-                            <td className="border px-3 py-2 text-center">
-                              {mark.cat?.toFixed(1) || '-'}
-                            </td>
-                            <td className="border px-3 py-2 text-center">
-                              {mark.practical?.toFixed(1) || '-'}
-                            </td>
-                            <td className="border px-3 py-2 text-center font-semibold">
-                              {mark.total?.toFixed(1) || '-'}
-                            </td>
-                            <td className="border px-3 py-2 text-center font-semibold">
-                              {grade}
-                            </td>
-                            <td className="border px-3 py-2 text-center">{competence}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="bg-gray-50 font-semibold">
-                      <tr>
-                        <td colSpan={5} className="border px-3 py-2 text-right">
-                          Session Average:
-                        </td>
-                        <td className="border px-3 py-2 text-center">
-                          {calculateSessionAverage(marks).toFixed(2)}%
-                        </td>
-                        <td colSpan={2} className="border px-3 py-2"></td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border border-gray-300">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="border border-gray-300 px-3 py-2 text-left">Code</th>
+                          <th className="border border-gray-300 px-3 py-2 text-left">Subject</th>
+                          <th className="border border-gray-300 px-3 py-2 text-center">Credits</th>
+                          <th className="border border-gray-300 px-3 py-2 text-center">CAT</th>
+                          <th className="border border-gray-300 px-3 py-2 text-center">Practical</th>
+                          <th className="border border-gray-300 px-3 py-2 text-center">Total</th>
+                          <th className="border border-gray-300 px-3 py-2 text-center">Grade</th>
+                          <th className="border border-gray-300 px-3 py-2 text-center">Competence</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {marks.map((mark) => {
+                          const grade = mark.total !== null ? calculateGradeSync(mark.total) : '-';
+                          const competence = mark.total !== null ? calculateCompetenceSync(mark.total) : '-';
+                          
+                          return (
+                            <tr key={mark.id} className="hover:bg-gray-50">
+                              <td className="border border-gray-300 px-3 py-2 font-medium">
+                                {mark.subject?.code || 'N/A'}
+                              </td>
+                              <td className="border border-gray-300 px-3 py-2">
+                                {mark.subject?.name || 'N/A'}
+                              </td>
+                              <td className="border border-gray-300 px-3 py-2 text-center">
+                                {mark.subject?.credits || 0}
+                              </td>
+                              <td className="border border-gray-300 px-3 py-2 text-center">
+                                {mark.cat?.toFixed(1) || '-'}
+                              </td>
+                              <td className="border border-gray-300 px-3 py-2 text-center">
+                                {mark.practical?.toFixed(1) || '-'}
+                              </td>
+                              <td className="border border-gray-300 px-3 py-2 text-center font-bold">
+                                {mark.total?.toFixed(1) || '-'}
+                              </td>
+                              <td className={`border border-gray-300 px-3 py-2 text-center font-bold ${getGradeColor(grade)}`}>
+                                {grade}
+                              </td>
+                              <td className={`border border-gray-300 px-3 py-2 text-center font-medium ${getCompetenceColor(competence)}`}>
+                                {competence}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Grading System */}
-          <div className="mt-8 pt-6 border-t">
-            <h4 className="font-semibold text-gray-900 mb-3">Grading System</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="font-medium mb-2">Grade Scale:</p>
-                <ul className="space-y-1">
-                  <li>A+ : 90-100% (Excellent)</li>
-                  <li>A : 80-89% (Very Good)</li>
-                  <li>B+ : 75-79% (Good)</li>
-                  <li>B : 70-74% (Above Average)</li>
-                  <li>C+ : 65-69% (Average)</li>
-                  <li>C : 60-64% (Pass)</li>
-                  <li>D : 50-59% (Marginal Pass)</li>
-                  <li>E : Below 50% (Fail)</li>
-                </ul>
+          <div className="mt-8 pt-6 border-t border-gray-300">
+            <h4 className="font-semibold text-gray-900 mb-4">Grading System</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="font-medium mb-3 text-gray-800">Grade Scale:</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>A+ : 90-100%</span>
+                    <span className="text-green-700">Excellent</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>A : 80-89%</span>
+                    <span className="text-green-600">Very Good</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>B+ : 75-79%</span>
+                    <span className="text-blue-600">Good</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>B : 70-74%</span>
+                    <span className="text-blue-500">Above Average</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>C+ : 65-69%</span>
+                    <span className="text-yellow-600">Average</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>C : 60-64%</span>
+                    <span className="text-yellow-500">Pass</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>D : 50-59%</span>
+                    <span className="text-orange-500">Marginal Pass</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>E : Below 50%</span>
+                    <span className="text-red-600">Fail</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="font-medium mb-2">Competence Levels:</p>
-                <ul className="space-y-1">
-                  <li>C : Competent (80% and above)</li>
-                  <li>P : Progressing (60-79%)</li>
-                  <li>I : Insufficient (Below 60%)</li>
-                </ul>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="font-medium mb-3 text-gray-800">Competence Levels:</p>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span className="text-sm"><strong>C : Competent</strong> (80% and above)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <span className="text-sm"><strong>P : Progressing</strong> (60-79%)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <span className="text-sm"><strong>I : Insufficient</strong> (Below 60%)</span>
+                  </div>
+                  <div className="mt-4 text-xs text-gray-600">
+                    <p><strong>Note:</strong> GPA is calculated on a 4.0 scale based on percentage scores.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="mt-12 pt-6 border-t">
-            <div className="flex justify-between items-end">
-              <div>
+          <div className="mt-12 pt-8 border-t border-gray-400">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+              <div className="space-y-2">
                 <p className="text-sm text-gray-600">Date Issued:</p>
                 <p className="font-medium">{formatDate(new Date())}</p>
+                <p className="text-xs text-gray-500 mt-4">
+                  This is an official transcript issued by Kongoni Technical and Vocational College.
+                  Any alteration makes this document invalid.
+                </p>
               </div>
-              <div className="text-center">
-                <div className="border-t-2 border-gray-800 w-48 mx-auto mt-16 pt-2">
+              <div className="text-center space-y-4">
+                <div className="border-t-2 border-gray-800 w-48 mx-auto pt-4">
                   <p className="text-sm font-medium">Authorized Signature</p>
                   <p className="text-xs text-gray-600">Academic Registrar</p>
                 </div>
+                <div className="border-2 border-dashed border-gray-300 px-6 py-3 rounded-lg">
+                  <p className="text-xs text-gray-500">OFFICIAL STAMP</p>
+                </div>
               </div>
-            </div>
-          </div>
-
-          {/* Stamp Area */}
-          <div className="mt-8 text-center">
-            <div className="inline-block border-2 border-gray-300 rounded-lg px-8 py-4">
-              <p className="text-sm text-gray-500">OFFICIAL STAMP</p>
             </div>
           </div>
         </div>
@@ -399,7 +625,27 @@ export default function TranscriptsPage() {
 
       {!loading && !transcriptData && selectedStudent && (
         <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
-          No transcript data available for this student.
+          <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <Search size={24} className="text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">No Transcript Data Available</h3>
+          <p className="mb-4">No academic records found for the selected student.</p>
+          <p className="text-sm text-gray-400">
+            Transcript data will appear once exam results are recorded.
+          </p>
+        </div>
+      )}
+
+      {!loading && !selectedStudent && (
+        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
+          <div className="mx-auto w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mb-4">
+            <Search size={24} className="text-cyan-600" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">Select a Student</h3>
+          <p className="mb-4">Choose a student from the dropdown above to view their transcript.</p>
+          <p className="text-sm text-gray-400">
+            Use the search box to quickly find students by admission number or name.
+          </p>
         </div>
       )}
     </div>

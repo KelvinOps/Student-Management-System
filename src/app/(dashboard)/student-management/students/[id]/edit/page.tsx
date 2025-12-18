@@ -1,13 +1,12 @@
 // src/app/(dashboard)/student-management/students/[id]/edit/page.tsx
-// STUDENT EDIT PAGE 
-
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Save, Loader } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { updateStudent, getStudentById } from "@/actions/student";
-import { getDepartments, getProgrammesByDepartment } from "@/actions/department";
+import { getDepartments } from "@/actions/department";
+import { getProgrammesByDepartment } from "@/actions/programme"; // Import the correct action
 import { getClasses } from "@/actions/class";
 import { Gender, Session } from "@prisma/client";
 
@@ -115,19 +114,29 @@ export default function EditStudentPage() {
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
 
-  useEffect(() => {
-    loadInitialData();
-  }, []);
+  // Function to load programmes
+  const loadProgrammes = useCallback(async (departmentId: string) => {
+    try {
+      if (!departmentId) {
+        setProgrammes([]);
+        return;
+      }
 
-  useEffect(() => {
-    if (formData.departmentId) {
-      loadProgrammes(formData.departmentId);
-    } else {
+      // Use the proper server action to get programmes by department
+      const programmesResult = await getProgrammesByDepartment(departmentId);
+      if (programmesResult.success && Array.isArray(programmesResult.data)) {
+        setProgrammes(programmesResult.data);
+      } else {
+        setProgrammes([]);
+      }
+    } catch (error) {
+      console.error("Error loading programmes:", error);
       setProgrammes([]);
     }
-  }, [formData.departmentId]);
+  }, []);
 
-  const loadInitialData = async () => {
+  // Define loadInitialData with useCallback
+  const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
       // Load student data
@@ -169,6 +178,11 @@ export default function EditStudentPage() {
           guardianIdNumber: student.guardianIdNumber || null,
           guardianAddress: student.guardianAddress || null,
         });
+        
+        // Load programmes for the student's department if it exists
+        if (student.departmentId) {
+          await loadProgrammes(student.departmentId);
+        }
       } else {
         setError(studentResult.error || "Failed to load student");
         return;
@@ -191,17 +205,31 @@ export default function EditStudentPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id, loadProgrammes]);
 
-  const loadProgrammes = async (departmentId: string) => {
-    const result = await getProgrammesByDepartment(departmentId);
-    if (result.success) {
-      setProgrammes(result.data);
-    }
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  // Handle department change to load programmes
+  const handleDepartmentChange = async (departmentId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      departmentId,
+      programmeId: "" // Reset programme when department changes
+    }));
+    
+    await loadProgrammes(departmentId);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
+    
+    // Handle department change separately
+    if (name === "departmentId") {
+      handleDepartmentChange(value);
+      return;
+    }
     
     setFormData((prev) => ({
       ...prev,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Filter, Eye, Check, X, Download } from "lucide-react";
+import { Plus, Search, Eye, Check, X, Download } from "lucide-react";
 
 export default function ApplicantsPage() {
   const [searchTerm, setSearchTerm] = useState("");

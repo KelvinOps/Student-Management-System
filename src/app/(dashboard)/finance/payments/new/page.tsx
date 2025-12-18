@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { recordFeePayment } from '@/actions/fee-payment';
 import { getStudentFeeBalance } from '@/actions/fee-payment';
 import { validatePaymentAmount, validateTransactionRef } from '@/app/lib/finance-validation';
-import { formatKES, generateReceiptNumber } from '@/app/lib/finance-utils';
+import { formatKES } from '@/app/lib/finance-utils'; // Removed unused generateReceiptNumber import
 import { PAYMENT_METHODS_CONFIG } from '@/app/lib/finance-constants';
 
 // Define types

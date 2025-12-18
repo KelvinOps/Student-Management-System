@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, BookOpen, Award, TrendingUp, Loader } from "lucide-react";
 import { getStudentById } from "@/actions/student";
@@ -46,11 +46,7 @@ export default function StudentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    loadStudent();
-  }, [params.id]);
-
-  const loadStudent = async () => {
+  const loadStudent = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -66,7 +62,11 @@ export default function StudentDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    loadStudent();
+  }, [loadStudent]);
 
   if (loading) {
     return (

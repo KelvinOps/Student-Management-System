@@ -1,15 +1,14 @@
 // app/(dashboard)/academics/exams/scheduling/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, Calendar, Edit, Trash2, Eye } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { Plus, Edit, Trash2 } from 'lucide-react'; // Removed unused Calendar and Eye imports
 import {
   getExamSchedules,
   createExamSchedule,
   updateExamSchedule,
   deleteExamSchedule,
 } from '@/actions/exam';
-import { getClasses } from '@/actions/class';
 
 interface ExamSchedule {
   id: string;
@@ -48,11 +47,8 @@ export default function ExamSchedulingPage() {
     scheduleType: '',
   });
 
-  useEffect(() => {
-    loadSchedules();
-  }, [filters]);
-
-  const loadSchedules = async () => {
+  // Define loadSchedules with useCallback to prevent infinite re-renders
+  const loadSchedules = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getExamSchedules({
@@ -70,7 +66,11 @@ export default function ExamSchedulingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]); // Add filters as dependency
+
+  useEffect(() => {
+    loadSchedules();
+  }, [loadSchedules]); // Now loadSchedules is stable
 
   const handleOpenModal = (schedule?: ExamSchedule) => {
     if (schedule) {

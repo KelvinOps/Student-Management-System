@@ -17,6 +17,9 @@ import type {
   Student
 } from '@prisma/client';
 
+// Re-export FloorLevel for use in other files
+export type { FloorLevel } from '@prisma/client';
+
 // Types
 type ApiResponse<T> = {
   success: boolean;

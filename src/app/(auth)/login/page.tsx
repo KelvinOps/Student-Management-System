@@ -1,11 +1,12 @@
 // app/(auth)/login/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function LoginPage() {
+// Create a separate component that uses useSearchParams
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/dashboard';
@@ -155,5 +156,31 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main page component wrapped with Suspense
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-white rounded-lg shadow-2xl p-8">
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-12 h-12 bg-cyan-700 rounded-lg flex items-center justify-center">
+              <span className="text-white text-2xl font-bold">I</span>
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Intellimis</h1>
+          <p className="text-sm text-gray-600 mt-2">
+            Kongoni Technical and Vocational College
+          </p>
+          <div className="mt-8 flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-700"></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

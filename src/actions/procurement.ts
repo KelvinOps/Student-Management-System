@@ -25,6 +25,11 @@ export interface ProcurementItem {
   specifications?: string;
 }
 
+interface ApprovalData {
+  approvedBy: string;
+  comments?: string;
+}
+
 async function generateRequestNumber() {
   const year = new Date().getFullYear();
   const count = await prisma.procurementRequest.count({
@@ -50,6 +55,10 @@ export async function createProcurementRequest(data: ProcurementRequestData) {
         description: data.description,
         estimatedCost: data.estimatedCost,
         status: 'PENDING',
+        // Store additional data as JSON in the description or add new fields
+        ...(data.priority && { 
+          description: `${data.description}\n\nPriority: ${data.priority}\nJustification: ${data.justification || 'N/A'}` 
+        }),
       },
     });
 
@@ -66,13 +75,37 @@ export async function updateProcurementRequest(
   data: Partial<ProcurementRequestData>
 ) {
   try {
+    const updateData: Prisma.ProcurementRequestUpdateInput = {
+      ...(data.department && { department: data.department }),
+      ...(data.description && { description: data.description }),
+      ...(data.estimatedCost && { estimatedCost: data.estimatedCost }),
+    };
+
+    // Handle additional fields
+    if (data.priority || data.justification || data.category) {
+      const existing = await prisma.procurementRequest.findUnique({
+        where: { id },
+        select: { description: true },
+      });
+
+      if (existing) {
+        // Parse or update description with additional info
+        updateData.description = existing.description;
+        if (data.priority) {
+          updateData.description += `\nUpdated Priority: ${data.priority}`;
+        }
+        if (data.justification) {
+          updateData.description += `\nUpdated Justification: ${data.justification}`;
+        }
+        if (data.category) {
+          updateData.description += `\nCategory: ${data.category}`;
+        }
+      }
+    }
+
     const request = await prisma.procurementRequest.update({
       where: { id },
-      data: {
-        ...(data.department && { department: data.department }),
-        ...(data.description && { description: data.description }),
-        ...(data.estimatedCost && { estimatedCost: data.estimatedCost }),
-      },
+      data: updateData,
     });
 
     revalidatePath('/finance/procurement');
@@ -85,16 +118,21 @@ export async function updateProcurementRequest(
 
 export async function approveProcurementRequest(
   id: string,
-  approvedBy: string,
-  comments?: string
+  approvalData: ApprovalData
 ) {
   try {
+    const { approvedBy, comments } = approvalData;
+
     const request = await prisma.procurementRequest.update({
       where: { id },
       data: {
         status: 'APPROVED',
         approvedBy,
         approvedAt: new Date(),
+        // Store comments in the description field for now
+        ...(comments && { 
+          description: await addApprovalComments(id, `Approval Comments: ${comments}`) 
+        }),
       },
     });
 
@@ -108,16 +146,21 @@ export async function approveProcurementRequest(
 
 export async function rejectProcurementRequest(
   id: string,
-  approvedBy: string,
-  comments?: string
+  rejectionData: ApprovalData
 ) {
   try {
+    const { approvedBy, comments } = rejectionData;
+
     const request = await prisma.procurementRequest.update({
       where: { id },
       data: {
         status: 'REJECTED',
         approvedBy,
         approvedAt: new Date(),
+        // Store comments in the description field for now
+        ...(comments && { 
+          description: await addApprovalComments(id, `Rejection Comments: ${comments}`) 
+        }),
       },
     });
 
@@ -129,11 +172,37 @@ export async function rejectProcurementRequest(
   }
 }
 
-export async function updateProcurementStatus(id: string, status: ProcurementStatus) {
+// Helper function to add comments to existing description
+async function addApprovalComments(id: string, comments: string): Promise<string> {
+  const request = await prisma.procurementRequest.findUnique({
+    where: { id },
+    select: { description: true },
+  });
+
+  if (!request) {
+    return comments;
+  }
+
+  return `${request.description}\n\n${comments}`;
+}
+
+export async function updateProcurementStatus(id: string, status: ProcurementStatus, comments?: string) {
   try {
+    const updateData: Prisma.ProcurementRequestUpdateInput = {
+      status,
+      ...(status === 'APPROVED' || status === 'REJECTED' ? {
+        approvedAt: new Date(),
+      } : {}),
+    };
+
+    // Add comments if provided
+    if (comments) {
+      updateData.description = await addApprovalComments(id, `Status Update to ${status}: ${comments}`);
+    }
+
     const request = await prisma.procurementRequest.update({
       where: { id },
-      data: { status },
+      data: updateData,
     });
 
     revalidatePath('/finance/procurement');
@@ -221,11 +290,33 @@ export async function getProcurementRequest(id: string) {
       return { success: false, error: 'Procurement request not found' };
     }
 
-    return { success: true, data: request };
+    // Parse additional info from description
+    const parsedRequest = {
+      ...request,
+      parsedDescription: parseDescription(request.description),
+    };
+
+    return { success: true, data: parsedRequest };
   } catch (error) {
     console.error('Error fetching procurement request:', error);
     return { success: false, error: 'Failed to fetch procurement request' };
   }
+}
+
+// Helper function to parse additional info from description
+function parseDescription(description: string) {
+  const result: Record<string, string> = {};
+  const lines = description.split('\n').filter(line => line.trim());
+
+  lines.forEach(line => {
+    const [key, ...valueParts] = line.split(':');
+    if (key && valueParts.length > 0) {
+      const value = valueParts.join(':').trim();
+      result[key.trim().toLowerCase().replace(/\s+/g, '_')] = value;
+    }
+  });
+
+  return result;
 }
 
 export async function deleteProcurementRequest(id: string) {
@@ -327,6 +418,8 @@ export async function getDepartmentProcurementBudget(department: string) {
       totalApproved: 0,
       totalSpent: 0,
       pending: 0,
+      approvedWithComments: [] as Array<{ requestNumber: string; comments?: string }>,
+      rejectedWithComments: [] as Array<{ requestNumber: string; comments?: string }>,
     };
 
     requests.forEach((request) => {
@@ -334,6 +427,13 @@ export async function getDepartmentProcurementBudget(department: string) {
 
       if (request.status === 'APPROVED' || request.status === 'COMPLETED') {
         summary.totalApproved += request.estimatedCost;
+        
+        // Extract approval comments if any
+        const parsed = parseDescription(request.description);
+        summary.approvedWithComments.push({
+          requestNumber: request.requestNumber,
+          comments: parsed.approval_comments,
+        });
       }
 
       if (request.status === 'COMPLETED') {
@@ -343,11 +443,58 @@ export async function getDepartmentProcurementBudget(department: string) {
       if (request.status === 'PENDING') {
         summary.pending += request.estimatedCost;
       }
+
+      if (request.status === 'REJECTED') {
+        // Extract rejection comments if any
+        const parsed = parseDescription(request.description);
+        summary.rejectedWithComments.push({
+          requestNumber: request.requestNumber,
+          comments: parsed.rejection_comments,
+        });
+      }
     });
 
     return { success: true, data: summary };
   } catch (error) {
     console.error('Error fetching department procurement budget:', error);
     return { success: false, error: 'Failed to fetch department budget' };
+  }
+}
+
+// Get procurement statistics for dashboard
+export async function getProcurementDashboardStats() {
+  try {
+    const currentYear = new Date().getFullYear();
+    const yearStart = new Date(currentYear, 0, 1);
+    const yearEnd = new Date(currentYear, 11, 31);
+
+    const requests = await prisma.procurementRequest.findMany({
+      where: {
+        createdAt: {
+          gte: yearStart,
+          lte: yearEnd,
+        },
+      },
+    });
+
+    const totalValue = requests.reduce((sum, r) => sum + r.estimatedCost, 0);
+    const pendingCount = requests.filter(r => r.status === 'PENDING').length;
+    const approvedCount = requests.filter(r => r.status === 'APPROVED').length;
+    const completedCount = requests.filter(r => r.status === 'COMPLETED').length;
+
+    return {
+      success: true,
+      data: {
+        totalRequests: requests.length,
+        totalValue,
+        pendingCount,
+        approvedCount,
+        completedCount,
+        averageProcessingTime: 0, // You would calculate this based on approval dates
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching procurement dashboard stats:', error);
+    return { success: false, error: 'Failed to fetch procurement stats' };
   }
 }
