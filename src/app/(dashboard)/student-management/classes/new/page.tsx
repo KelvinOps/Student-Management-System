@@ -1,11 +1,116 @@
 // app/(dashboard)/student-management/classes/new/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
-import { getProgrammesForDropdown, createClass } from '@/actions/class';
+import { createClass } from '@/actions/class';
 import { toast } from 'sonner';
+
+// Data extracted from your provided dataset
+const INSTITUTION_DATA = {
+  departments: [
+    "Information Communication Technology",
+    "Mechanical Engineering", 
+    "Building and Civil Engineering",
+    "Electrical and Electronic",
+    "Fashion Design & Cosmetology",
+    "Hospitality And Tourism",
+    "Agriculture",
+    "Business",
+    "Hospitality and Institutional Management"
+  ],
+  
+  // Mapping of department to its programmes
+  departmentProgrammes: {
+    "Information Communication Technology": [
+      "Certificate In Information Communication Technology L5",
+      "Computer Operation NITA Grade III",
+      "Computer Packages",
+      "Diploma In Information Communication Technology L6",
+      "Artisan In ICT Technician (l4)"
+    ],
+    "Mechanical Engineering": [
+      "Diploma Automotive Technician (L6)",
+      "Artisan In Automotive Mechanic L3",
+      "Certificate In Automotive Technician L5",
+      "Artisan in Automotive Technology L4"
+    ],
+    "Building and Civil Engineering": [
+      "Plumbing L4",
+      "Certificate Building Technician L5",
+      "Certificate In Plumbing L5",
+      "Masonry L4",
+      "Certificate in Welding & Fabrication L5",
+      "Diploma In Civil Engineering L6",
+      "Diploma In Building Technology",
+      "Artisan In Welding & Fabrication L4",
+      "Plumbing NITA GRADE III",
+      "Artisan In Masonry"
+    ],
+    "Electrical and Electronic": [
+      "Driving School B-Light",
+      "Electrical Wireman NITA GRADE III",
+      "Diploma In Electrical Engineering L6",
+      "Certificate In electrical operator L5",
+      "Artisan In Electrical Installation L3",
+      "Artisan In Electrical Installation L4"
+    ],
+    "Fashion Design & Cosmetology": [
+      "Hairdressing NITA Grade III",
+      "Cosmetology L3",
+      "Cosmetology L5",
+      "Artisan In Fashion Design (L4)",
+      "Certificate In Hairdressing L5",
+      "Certificate In Fashion Design L5",
+      "Dressmaking NITA Grade III",
+      "Certificate In Beauty Therapy L5",
+      "Diploma In Beauty Therapy L6",
+      "Artisan In Beauty Therapy L4",
+      "Diploma In Fashion Design L6",
+      "HAIRDRESSING L6",
+      "Artisan In Hairdressing L4",
+      "Artisan In Hairdressing L3",
+      "Artisan in Beauty Therapy L3"
+    ],
+    "Hospitality And Tourism": [
+      "FOOD AND BEVERAGE L4",
+      "FOOD AND BEVERAGE L3",
+      "FOOD AND BEVERAGE L5",
+      "FOOD AND BEVERAGE L6"
+    ],
+    "Agriculture": [
+      "Sustainable Agriculture for Rural Development Level 5",
+      "Diploma In Agriculture Extension L6",
+      "Diploma In Agriculture",
+      "Horticulture Production Level 5",
+      "Artisan in Food Production L4",
+      "Diploma in Food Production L6",
+      "Certificate in Food Production L5",
+      "Artisan In Agriculture"
+    ],
+    "Business": [
+      "Certificate In community Development an Social Work L5",
+      "Diploma in Community Development and Social Work L6",
+      "Certificate In Office Administration L5",
+      "Diploma in Accountancy L6",
+      "Diploma In Office administration Level 6",
+      "Certificate In Huma Resource Management",
+      "Artisan In Social Work and Community Development L4",
+      "Certificate In Land Survey L5",
+      "Certificate in Human Resource Management L5",
+      "Diploma In Supply Chain Management",
+      "Certificate In Supply Chain Management",
+      "Diploma In Survey",
+      "Diploma In Human Resource Management L6",
+      "Diploma In Baking Technology L6",
+      "Office Assistant Level 4"
+    ],
+    "Hospitality and Institutional Management": [
+      "Diploma In Fashion Design L6"
+    ]
+  }
+};
 
 interface Programme {
   id: string;
@@ -19,6 +124,7 @@ interface Programme {
 interface FormData {
   code: string;
   name: string;
+  department: string;
   programmeId: string;
   branch: string;
   sessionType: string;
@@ -27,13 +133,20 @@ interface FormData {
   endDate: string;
 }
 
+interface Department {
+  id: string;
+  name: string;
+}
+
 export default function AddClassPage(): React.ReactElement {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [formData, setFormData] = useState<FormData>({
     code: '',
     name: '',
+    department: '',
     programmeId: '',
     branch: 'Main Campus',
     sessionType: 'Semester',
@@ -42,24 +155,71 @@ export default function AddClassPage(): React.ReactElement {
     endDate: '',
   });
 
-  // Fetch programmes on mount
-  useEffect(() => {
-    const fetchProgrammes = async (): Promise<void> => {
-      try {
-        const result = await getProgrammesForDropdown();
-        if (result.success && result.data) {
-          setProgrammes(result.data as Programme[]);
-        } else {
-          toast.error('Failed to load programmes');
-        }
-      } catch (error) {
-        console.error('Error fetching programmes:', error);
-        toast.error('Failed to load programmes');
-      }
-    };
-
-    fetchProgrammes();
+  // Helper function to generate programme code from programme name
+  const generateProgrammeCode = useCallback((programmeName: string): string => {
+    // Extract key parts from programme name to create a code
+    const words = programmeName.split(' ');
+    const mainWords = words.filter(word => 
+      !['In', 'And', 'The', 'For', 'Of', 'L3', 'L4', 'L5', 'L6', 'NITA', 'Grade', 'III'].includes(word)
+    );
+    
+    if (mainWords.length >= 2) {
+      // Use first letters of first two main words
+      return `${mainWords[0].charAt(0)}${mainWords[1].charAt(0)}`.toUpperCase();
+    } else if (mainWords.length === 1) {
+      // Use first two letters of the single word
+      return mainWords[0].substring(0, 2).toUpperCase();
+    }
+    
+    return 'PRG'; // Default code
   }, []);
+
+  // Load programmes when department changes
+  const loadProgrammes = useCallback((departmentName: string): void => {
+    try {
+      // Get programmes for this department from static data
+      const departmentProgrammes = INSTITUTION_DATA.departmentProgrammes[
+        departmentName as keyof typeof INSTITUTION_DATA.departmentProgrammes
+      ] || [];
+      
+      // Format programmes to match the expected interface
+      const formattedProgrammes = departmentProgrammes.map((prog, index) => ({
+        id: `${departmentName}_${index}`, // Create a unique ID
+        code: generateProgrammeCode(prog), // Use the helper function
+        name: prog,
+        department: {
+          name: departmentName
+        }
+      }));
+      
+      setProgrammes(formattedProgrammes);
+      
+      // Clear selected programme when department changes
+      setFormData(prev => ({ ...prev, programmeId: '' }));
+    } catch (error) {
+      console.error('Error loading programmes:', error);
+      toast.error('Failed to load programmes');
+    }
+  }, [generateProgrammeCode]);
+
+  // Initialize departments from static data
+  useEffect(() => {
+    const formattedDepartments = INSTITUTION_DATA.departments.map(dept => ({
+      id: dept,
+      name: dept
+    }));
+    setDepartments(formattedDepartments);
+  }, []);
+
+  // Load programmes when department changes
+  useEffect(() => {
+    if (formData.department) {
+      loadProgrammes(formData.department);
+    } else {
+      setProgrammes([]);
+      setFormData(prev => ({ ...prev, programmeId: '' }));
+    }
+  }, [formData.department, loadProgrammes]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -68,6 +228,7 @@ export default function AddClassPage(): React.ReactElement {
     if (
       !formData.code ||
       !formData.name ||
+      !formData.department ||
       !formData.programmeId ||
       !formData.startDate ||
       !formData.endDate
@@ -84,7 +245,17 @@ export default function AddClassPage(): React.ReactElement {
     setLoading(true);
 
     try {
-      const result = await createClass({
+      // Find the selected programme
+      const selectedProgramme = programmes.find(prog => prog.id === formData.programmeId);
+      
+      if (!selectedProgramme) {
+        toast.error('Selected programme not found');
+        setLoading(false);
+        return;
+      }
+
+      // Create the class data without the extra fields that aren't in the expected type
+      const classData = {
         code: formData.code,
         name: formData.name,
         programmeId: formData.programmeId,
@@ -93,7 +264,13 @@ export default function AddClassPage(): React.ReactElement {
         modeOfStudy: formData.modeOfStudy,
         startDate: new Date(formData.startDate),
         endDate: new Date(formData.endDate),
-      });
+        // If your createClass function expects additional fields, add them here
+        // For example, if you need to pass programme name separately:
+        // ...(selectedProgramme.name && { programmeName: selectedProgramme.name }),
+        // ...(formData.department && { department: formData.department }),
+      };
+
+      const result = await createClass(classData);
 
       if (result.success) {
         toast.success(result.message || 'Class created successfully');
@@ -180,6 +357,27 @@ export default function AddClassPage(): React.ReactElement {
               </div>
 
               <div>
+                <label htmlFor="department" className="block text-sm font-medium text-gray-700 mb-2">
+                  Department <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="department"
+                  name="department"
+                  value={formData.department}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-700 focus:border-transparent"
+                >
+                  <option value="">Select Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label htmlFor="programmeId" className="block text-sm font-medium text-gray-700 mb-2">
                   Programme <span className="text-red-500">*</span>
                 </label>
@@ -189,15 +387,28 @@ export default function AddClassPage(): React.ReactElement {
                   value={formData.programmeId}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-700 focus:border-transparent"
+                  disabled={!formData.department || programmes.length === 0}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-700 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
                 >
-                  <option value="">Select Programme</option>
+                  <option value="">
+                    {!formData.department 
+                      ? 'Select a department first' 
+                      : programmes.length === 0 
+                        ? 'No programmes found for this department' 
+                        : 'Select Programme'
+                    }
+                  </option>
                   {programmes.map((prog) => (
                     <option key={prog.id} value={prog.id}>
                       {prog.code} - {prog.name}
                     </option>
                   ))}
                 </select>
+                {formData.department && programmes.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    No programmes available for the selected department
+                  </p>
+                )}
               </div>
 
               <div>
@@ -304,7 +515,7 @@ export default function AddClassPage(): React.ReactElement {
           </button>
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !formData.department || !formData.programmeId}
             className="flex items-center gap-2 px-4 py-2 bg-cyan-700 text-white rounded-lg hover:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
