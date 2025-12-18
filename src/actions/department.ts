@@ -1,9 +1,8 @@
-// src/actions/department.ts
 'use server';
 
 import { prisma } from '@/app/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { Prisma } from '@prisma/client';
+import { Prisma, ProgrammeLevel } from '@prisma/client';
 
 export interface DepartmentData {
   name: string;
@@ -44,7 +43,6 @@ export async function updateDepartment(id: string, data: Partial<DepartmentData>
   }
 }
 
-// Add this function to your src/actions/department.ts file
 export async function getProgrammesByDepartment(departmentId: string) {
   try {
     const programmes = await prisma.programme.findMany({
@@ -227,5 +225,146 @@ export async function getDepartmentStatistics(departmentId: string) {
   } catch (error) {
     console.error('Error fetching department statistics:', error);
     return { success: false, error: 'Failed to fetch department statistics' };
+  }
+}
+
+// Helper function to find or create department by name
+export async function findOrCreateDepartment(departmentName: string) {
+  try {
+    // First, try to find existing department
+    let department = await prisma.department.findFirst({
+      where: { 
+        name: { 
+          equals: departmentName,
+          mode: 'insensitive'
+        }
+      },
+    });
+
+    // If not found, create it
+    if (!department) {
+      const departmentCode = departmentName
+        .split(' ')
+        .map(word => word.charAt(0))
+        .join('')
+        .toUpperCase()
+        .substring(0, 4);
+
+      department = await prisma.department.create({
+        data: {
+          name: departmentName,
+          code: departmentCode,
+          isActive: true,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      data: department,
+    };
+  } catch (error) {
+    console.error('Error finding/creating department:', error);
+    return {
+      success: false,
+      error: 'Failed to find or create department',
+    };
+  }
+}
+
+// Helper function to find or create programme by name and department
+export async function findOrCreateProgramme(programmeName: string, departmentId: string) {
+  try {
+    // First, try to find existing programme
+    let programme = await prisma.programme.findFirst({
+      where: { 
+        name: { 
+          equals: programmeName,
+          mode: 'insensitive'
+        },
+        departmentId: departmentId
+      },
+    });
+
+    // If not found, create it
+    if (!programme) {
+      // Generate programme code from name
+      const generateProgrammeCode = (name: string): string => {
+        const words = name.split(' ');
+        const mainWords = words.filter(word => 
+          !['In', 'And', 'The', 'For', 'Of', 'To', 'With', 'L3', 'L4', 'L5', 'L6', 
+            'NITA', 'Grade', 'III', 'Certificate', 'Diploma', 'Artisan', 'Level'].includes(word)
+        );
+        
+        if (mainWords.length >= 2) {
+          return `${mainWords[0].charAt(0)}${mainWords[1].charAt(0)}`.toUpperCase();
+        }
+        return name.substring(0, 4).toUpperCase().replace(/\s+/g, '');
+      };
+      
+      // Determine programme level
+      const getProgrammeLevel = (name: string): ProgrammeLevel => {
+        if (name.includes('L6') || name.includes('Level 6') || name.includes('Diploma')) 
+          return ProgrammeLevel.DIPLOMA;
+        if (name.includes('L5') || name.includes('Level 5') || name.includes('Certificate')) 
+          return ProgrammeLevel.CERTIFICATE;
+        if (name.includes('L4') || name.includes('Level 4') || name.includes('Artisan')) 
+          return ProgrammeLevel.ARTISAN;
+        if (name.includes('L3') || name.includes('Level 3') || name.includes('Grade III')) 
+          return ProgrammeLevel.CERTIFICATE;
+        
+        return ProgrammeLevel.CERTIFICATE;
+      };
+      
+      // Determine award scheme
+      const getAwardScheme = (name: string): string => {
+        if (name.includes('NITA')) return 'NITA';
+        if (name.includes('Grade')) return 'NITA';
+        return 'TVET';
+      };
+      
+      // Determine duration based on level
+      const getDuration = (level: ProgrammeLevel): number => {
+        switch(level) {
+          case ProgrammeLevel.DIPLOMA: return 3;
+          case ProgrammeLevel.CERTIFICATE: return 2;
+          case ProgrammeLevel.ARTISAN: return 1;
+          case ProgrammeLevel.HIGHER_DIPLOMA: return 3;
+          case ProgrammeLevel.BACHELOR: return 4;
+          default: return 2;
+        }
+      };
+      
+      const level = getProgrammeLevel(programmeName);
+      const duration = getDuration(level);
+      const awardScheme = getAwardScheme(programmeName);
+      const programmeCode = generateProgrammeCode(programmeName);
+      
+      // Create the programme
+      programme = await prisma.programme.create({
+        data: {
+          name: programmeName,
+          code: programmeCode,
+          departmentId: departmentId,
+          level: level,
+          duration: duration,
+          awardScheme: awardScheme,
+          effectiveDate: new Date(),
+          endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 5)),
+          isActive: true,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      data: programme,
+    };
+  } catch (error) {
+    console.error('Error finding/creating programme:', error);
+    return {
+      success: false,
+      error: 'Failed to find or create programme',
+    };
   }
 }

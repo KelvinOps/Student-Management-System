@@ -1,5 +1,3 @@
-// src/app/(dashboard)/student-management/students/new/page.tsx
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,11 +11,14 @@ import { Gender, Session } from '@prisma/client';
 interface Department {
   id: string;
   name: string;
+  code: string;
 }
 
 interface Programme {
   id: string;
   name: string;
+  code: string;
+  level: string;
 }
 
 interface Class {
@@ -136,10 +137,7 @@ const INSTITUTION_DATA = {
      "SEPT - DEC 2026",
      "JAN- APR 2027",
      "MAY-AUGUST 2027",
-     "SEPT - DEC 2027",
-    "JAN- APR 2028",
-     "MAY-AUGUST 2028",
-     "SEPT - DEC 2028",
+     "SEPT - DEC 2027"
   ]
 };
 
@@ -197,9 +195,7 @@ export default function NewStudentPage() {
 
   // Load initial data
   useEffect(() => {
-    loadDepartments();
-    loadClasses();
-    loadAdmissionNumber();
+    loadInitialData();
   }, []);
 
   // Load programmes when department changes
@@ -208,6 +204,7 @@ export default function NewStudentPage() {
       loadProgrammes(formData.departmentId);
     } else {
       setProgrammes([]);
+      setFormData(prev => ({ ...prev, programmeId: '' }));
     }
   }, [formData.departmentId]);
 
@@ -218,40 +215,90 @@ export default function NewStudentPage() {
     }
   };
 
-  const loadDepartments = () => {
-    // Use static data from INSTITUTION_DATA
-    const formattedDepartments = INSTITUTION_DATA.departments.map(dept => ({
-      id: dept,
-      name: dept
-    }));
-    setDepartments(formattedDepartments);
+  const loadDepartments = async () => {
+    try {
+      const result = await getDepartments({ isActive: true });
+      if (result.success && Array.isArray(result.data)) {
+        setDepartments(result.data);
+      } else {
+        // Fallback to static data if API fails
+        const formattedDepartments = INSTITUTION_DATA.departments.map(dept => ({
+          id: dept,
+          name: dept,
+          code: dept.substring(0, 3).toUpperCase()
+        }));
+        setDepartments(formattedDepartments);
+      }
+    } catch (error) {
+      console.error('Error loading departments:', error);
+      // Fallback to static data
+      const formattedDepartments = INSTITUTION_DATA.departments.map(dept => ({
+        id: dept,
+        name: dept,
+        code: dept.substring(0, 3).toUpperCase()
+      }));
+      setDepartments(formattedDepartments);
+    }
   };
 
-  const loadProgrammes = (departmentId: string) => {
-    // Find the selected department name
-    const selectedDepartment = departments.find(dept => dept.id === departmentId);
-    
-    if (selectedDepartment) {
-      // Get programmes for this department from static data
-      const departmentProgrammes = INSTITUTION_DATA.departmentProgrammes[
-        selectedDepartment.name as keyof typeof INSTITUTION_DATA.departmentProgrammes
-      ] || [];
+  const loadProgrammes = async (departmentId: string) => {
+    try {
+      // Check if departmentId is a UUID or a name
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(departmentId);
       
-      const formattedProgrammes = departmentProgrammes.map(prog => ({
-        id: prog,
-        name: prog
-      }));
-      
-      setProgrammes(formattedProgrammes);
-    } else {
+      if (isUuid) {
+        // It's a UUID, fetch programmes from database
+        const result = await getProgrammesByDepartment(departmentId);
+        if (result.success && Array.isArray(result.data)) {
+          setProgrammes(result.data);
+        } else {
+          setProgrammes([]);
+        }
+      } else {
+        // It's a department name, use static data
+        const selectedDepartment = departments.find(dept => dept.id === departmentId);
+        if (selectedDepartment) {
+          const departmentProgrammes = INSTITUTION_DATA.departmentProgrammes[
+            selectedDepartment.name as keyof typeof INSTITUTION_DATA.departmentProgrammes
+          ] || [];
+          
+          const formattedProgrammes = departmentProgrammes.map(prog => ({
+            id: prog,
+            name: prog,
+            code: prog.substring(0, 3).toUpperCase(),
+            level: 'CERTIFICATE' // Default level
+          }));
+          setProgrammes(formattedProgrammes);
+        } else {
+          setProgrammes([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading programmes:', error);
       setProgrammes([]);
     }
   };
 
   const loadClasses = async () => {
-    const result = await getClasses();
-    if (result.success && Array.isArray(result.data)) {
-      setClasses(result.data);
+    try {
+      const result = await getClasses();
+      if (result.success && Array.isArray(result.data)) {
+        setClasses(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading classes:', error);
+    }
+  };
+
+  const loadInitialData = async () => {
+    try {
+      await Promise.all([
+        loadDepartments(),
+        loadClasses(),
+        loadAdmissionNumber(),
+      ]);
+    } catch (error) {
+      console.error('Error loading initial data:', error);
     }
   };
 
@@ -267,12 +314,27 @@ export default function NewStudentPage() {
     setSuccess('');
 
     try {
+      // Validate required fields
+      if (!formData.firstName || !formData.lastName || !formData.gender || !formData.dateOfBirth) {
+        setError('Please fill in all required personal information fields');
+        setLoading(false);
+        return;
+      }
+
+      if (!formData.departmentId || !formData.programmeId || !formData.classId || !formData.cohort || !formData.session) {
+        setError('Please fill in all required academic information fields');
+        setLoading(false);
+        return;
+      }
+
       const result = await createStudent({
         ...formData,
         gender: formData.gender as Gender,
         session: formData.session as Session,
         dateOfBirth: new Date(formData.dateOfBirth),
         kcpeScore: formData.kcpeScore ? parseInt(formData.kcpeScore) : undefined,
+        // Note: departmentId and programmeId might be names or UUIDs
+        // The createStudent function will handle both cases
       });
 
       if (result.success) {
@@ -635,7 +697,7 @@ export default function NewStudentPage() {
                       </option>
                     ))}
                     {programmes.length === 0 && formData.departmentId && (
-                      <option value="" disabled>Select a department first</option>
+                      <option value="" disabled>Loading programmes...</option>
                     )}
                   </select>
                 </div>

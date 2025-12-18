@@ -1,4 +1,3 @@
-// src/actions/student.ts
 'use server';
 
 import { revalidatePath } from 'next/cache';
@@ -15,6 +14,7 @@ import type {
   Subject,
   FeePayment
 } from '@prisma/client';
+import { findOrCreateDepartment, findOrCreateProgramme } from '@/actions/department';
 
 // Types for responses
 type StudentWithRelations = Student & {
@@ -154,13 +154,80 @@ export async function createStudent(data: CreateStudentInput): Promise<ApiRespon
       ? new Date(data.dateOfBirth) 
       : data.dateOfBirth;
 
-    // Create student
+    // --- FIX: Handle department and programme IDs ---
+    let departmentId = data.departmentId;
+    let programmeId = data.programmeId;
+
+    // Check if departmentId is a name (not a UUID)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(departmentId);
+    
+    if (!isUuid) {
+      // Find or create department by name
+      const deptResult = await findOrCreateDepartment(departmentId);
+      if (!deptResult.success) {
+        return {
+          success: false,
+          error: deptResult.error || 'Failed to process department',
+        };
+      }
+      departmentId = deptResult.data!.id;
+    }
+
+    // Check if programmeId is a name (not a UUID)
+    const isProgrammeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(programmeId);
+    
+    if (!isProgrammeUuid) {
+      // Find or create programme by name and department
+      const progResult = await findOrCreateProgramme(programmeId, departmentId);
+      if (!progResult.success) {
+        return {
+          success: false,
+          error: progResult.error || 'Failed to process programme',
+        };
+      }
+      programmeId = progResult.data!.id;
+    }
+
+    // Create student with the resolved UUIDs
     const student = await prisma.student.create({
       data: {
-        ...data,
-        dateOfBirth,
+        admissionNumber: data.admissionNumber,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        middleName: data.middleName || null,
+        gender: data.gender,
+        dateOfBirth: dateOfBirth,
         nationality: data.nationality || 'Kenyan',
+        idNumber: data.idNumber || null,
+        email: data.email || null,
+        phoneNumber: data.phoneNumber || null,
+        avatar: data.avatar || null,
+        religion: data.religion || null,
+        cohort: data.cohort,
+        academicYear: data.academicYear,
+        session: data.session,
+        classId: data.classId,
+        programmeId: programmeId,
+        departmentId: departmentId,
+        sportsHouse: data.sportsHouse || null,
+        stream: data.stream || null,
+        previousSchool: data.previousSchool || null,
+        kcpeScore: data.kcpeScore || null,
+        specialNeeds: data.specialNeeds || null,
         academicStatus: data.academicStatus || 'ACTIVE',
+        personnelId: data.personnelId || null,
+        address: data.address || null,
+        county: data.county || null,
+        subCounty: data.subCounty || null,
+        ward: data.ward || null,
+        village: data.village || null,
+        guardianName: data.guardianName || null,
+        guardianPhone: data.guardianPhone || null,
+        guardianEmail: data.guardianEmail || null,
+        guardianRelation: data.guardianRelation || null,
+        guardianOccupation: data.guardianOccupation || null,
+        guardianIdNumber: data.guardianIdNumber || null,
+        guardianAddress: data.guardianAddress || null,
       },
       include: {
         class: true,
