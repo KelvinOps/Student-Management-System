@@ -1,4 +1,4 @@
-// prisma/seed.ts
+// prisma/seed.ts - COMPLETE CORRECTED VERSION
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
