@@ -1,7 +1,7 @@
 // app/(dashboard)/student-management/classes/new/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { createClass, getProgrammesForDropdown } from '@/actions/class';
