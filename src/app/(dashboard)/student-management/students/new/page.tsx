@@ -26,6 +26,124 @@ interface Class {
   name: string;
 }
 
+// Data extracted from your provided dataset
+const INSTITUTION_DATA = {
+  departments: [
+    "Information Communication Technology",
+    "Mechanical Engineering", 
+    "Building and Civil Engineering",
+    "Electrical and Electronic",
+    "Fashion Design & Cosmetology",
+    "Hospitality And Tourism",
+    "Agriculture",
+    "Business",
+    "Hospitality and Institutional Management"
+  ],
+  
+  // Mapping of department to its programmes
+  departmentProgrammes: {
+    "Information Communication Technology": [
+      "Certificate In Information Communication Technology L5",
+      "Computer Operation NITA Grade III",
+      "Computer Packages",
+      "Diploma In Information Communication Technology L6",
+      "Artisan In ICT Technician (l4)"
+    ],
+    "Mechanical Engineering": [
+      "Diploma Automotive Technician (L6)",
+      "Artisan In Automotive Mechanic L3",
+      "Certificate In Automotive Technician L5",
+      "Artisan in Automotive Technology L4"
+    ],
+    "Building and Civil Engineering": [
+      "Plumbing L4",
+      "Certificate Building Technician L5",
+      "Certificate In Plumbing L5",
+      "Masonry L4",
+      "Certificate in Welding & Fabrication L5",
+      "Diploma In Civil Engineering L6",
+      "Diploma In Building Technology",
+      "Artisan In Welding & Fabrication L4",
+      "Plumbing NITA GRADE III",
+      "Artisan In Masonry"
+    ],
+    "Electrical and Electronic": [
+      "Driving School B-Light",
+      "Electrical Wireman NITA GRADE III",
+      "Diploma In Electrical Engineering L6",
+      "Certificate In electrical operator L5",
+      "Artisan In Electrical Installation L3",
+      "Artisan In Electrical Installation L4"
+    ],
+    "Fashion Design & Cosmetology": [
+      "Hairdressing NITA Grade III",
+      "Cosmetology L3",
+      "Cosmetology L5",
+      "Artisan In Fashion Design (L4)",
+      "Certificate In Hairdressing L5",
+      "Certificate In Fashion Design L5",
+      "Dressmaking NITA Grade III",
+      "Certificate In Beauty Therapy L5",
+      "Diploma In Beauty Therapy L6",
+      "Artisan In Beauty Therapy L4",
+      "Diploma In Fashion Design L6",
+      "HAIRDRESSING L6",
+      "Artisan In Hairdressing L4",
+      "Artisan In Hairdressing L3",
+      "Artisan in Beauty Therapy L3"
+    ],
+    "Hospitality And Tourism": [
+      "FOOD AND BEVERAGE L4",
+      "FOOD AND BEVERAGE L3",
+      "FOOD AND BEVERAGE L5",
+      "FOOD AND BEVERAGE L6"
+    ],
+    "Agriculture": [
+      "Sustainable Agriculture for Rural Development Level 5",
+      "Diploma In Agriculture Extension L6",
+      "Diploma In Agriculture",
+      "Horticulture Production Level 5",
+      "Artisan in Food Production L4",
+      "Diploma in Food Production L6",
+      "Certificate in Food Production L5",
+      "Artisan In Agriculture"
+    ],
+    "Business": [
+      "Certificate In community Development an Social Work L5",
+      "Diploma in Community Development and Social Work L6",
+      "Certificate In Office Administration L5",
+      "Diploma in Accountancy L6",
+      "Diploma In Office administration Level 6",
+      "Certificate In Huma Resource Management",
+      "Artisan In Social Work and Community Development L4",
+      "Certificate In Land Survey L5",
+      "Certificate in Human Resource Management L5",
+      "Diploma In Supply Chain Management",
+      "Certificate In Supply Chain Management",
+      "Diploma In Survey",
+      "Diploma In Human Resource Management L6",
+      "Diploma In Baking Technology L6",
+      "Office Assistant Level 4"
+    ],
+    "Hospitality and Institutional Management": [
+      "Diploma In Fashion Design L6"
+    ]
+  },
+  
+  // Cohort data from your dataset
+  cohorts: [
+    "SEPT - DEC 2025",
+    "MAY-AUGUST 2025", 
+    "JAN- APR 2025",
+    "SEPT - DEC 2025",
+    "MAY-AUGUST 2025",
+    "JAN- APR 2025",
+    "SEPT - DEC 2025",
+    "MAY-AUGUST 2025",
+    "JAN- APR 2025"
+  ]
+};
+
 export default function NewStudentPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('personal');
@@ -76,6 +194,7 @@ export default function NewStudentPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [cohorts] = useState<string[]>(Array.from(new Set(INSTITUTION_DATA.cohorts)));
 
   // Load initial data
   useEffect(() => {
@@ -100,17 +219,33 @@ export default function NewStudentPage() {
     }
   };
 
-  const loadDepartments = async () => {
-    const result = await getDepartments();
-    if (result.success && Array.isArray(result.data)) {
-      setDepartments(result.data);
-    }
+  const loadDepartments = () => {
+    // Use static data from INSTITUTION_DATA
+    const formattedDepartments = INSTITUTION_DATA.departments.map(dept => ({
+      id: dept,
+      name: dept
+    }));
+    setDepartments(formattedDepartments);
   };
 
-  const loadProgrammes = async (departmentId: string) => {
-    const result = await getProgrammesByDepartment(departmentId);
-    if (result.success && Array.isArray(result.data)) {
-      setProgrammes(result.data);
+  const loadProgrammes = (departmentId: string) => {
+    // Find the selected department name
+    const selectedDepartment = departments.find(dept => dept.id === departmentId);
+    
+    if (selectedDepartment) {
+      // Get programmes for this department from static data
+      const departmentProgrammes = INSTITUTION_DATA.departmentProgrammes[
+        selectedDepartment.name as keyof typeof INSTITUTION_DATA.departmentProgrammes
+      ] || [];
+      
+      const formattedProgrammes = departmentProgrammes.map(prog => ({
+        id: prog,
+        name: prog
+      }));
+      
+      setProgrammes(formattedProgrammes);
+    } else {
+      setProgrammes([]);
     }
   };
 
@@ -446,15 +581,20 @@ export default function NewStudentPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Cohort *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     name="cohort"
                     value={formData.cohort}
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., Module 1 Term 1"
-                  />
+                  >
+                    <option value="">Select cohort</option>
+                    {cohorts.map((cohort, index) => (
+                      <option key={index} value={cohort}>
+                        {cohort}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -495,6 +635,9 @@ export default function NewStudentPage() {
                         {prog.name}
                       </option>
                     ))}
+                    {programmes.length === 0 && formData.departmentId && (
+                      <option value="" disabled>Select a department first</option>
+                    )}
                   </select>
                 </div>
 
